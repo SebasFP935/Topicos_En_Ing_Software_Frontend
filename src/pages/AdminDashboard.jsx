@@ -1,4 +1,4 @@
-import { BarChart2, CalendarCheck, Clock, Users, TrendingUp, Activity, CheckCircle, CircleCheck, CircleX, ParkingSquare } from 'lucide-react'
+import { BarChart2, CalendarCheck, Clock, Users, TrendingUp, Activity, CheckCircle, ParkingSquare, XCircle } from 'lucide-react'
 import { C, GRAD, BLOQUES } from '../tokens'
 import { Card } from '../components/ui/Card'
 import { GradText } from '../components/ui/GradText'
@@ -14,10 +14,10 @@ const KPIS = [
 ]
 
 const FEED = [
-  { msg: 'Nueva reserva confirmada', det: 'Juan Perez · Espacio A-15 · Horario B',  t: 'hace 5 min',  Icon: CircleCheck, color: '#3de8c8' },
+  { msg: 'Nueva reserva confirmada', det: 'Juan Perez · Espacio A-15 · Horario B',  t: 'hace 5 min',  Icon: CheckCircle, color: '#3de8c8' },
   { msg: 'Check-in completado',      det: 'Maria Gonzalez · Espacio B-22 · Horario B', t: 'hace 12 min', Icon: CheckCircle, color: '#5b7eff' },
-  { msg: 'Reserva cancelada',        det: 'Luis Torres · Espacio C-08 · Horario C',  t: 'hace 18 min', Icon: CircleX,     color: '#ff4d6d' },
-  { msg: 'Nueva reserva confirmada', det: 'Ana Romero · Espacio A-03 · Horario A',   t: 'hace 25 min', Icon: CircleCheck, color: '#3de8c8' },
+  { msg: 'Reserva cancelada',        det: 'Luis Torres · Espacio C-08 · Horario C',  t: 'hace 18 min', Icon: XCircle,     color: '#ff4d6d' },
+  { msg: 'Nueva reserva confirmada', det: 'Ana Romero · Espacio A-03 · Horario A',   t: 'hace 25 min', Icon: CheckCircle, color: '#3de8c8' },
 ]
 
 export default function AdminDashboard() {

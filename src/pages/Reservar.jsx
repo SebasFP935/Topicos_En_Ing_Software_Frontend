@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, Clock, AlertTriangle, CheckCircle, ParkingSquare, CircleCheck } from 'lucide-react'
+import { Calendar, Clock, AlertTriangle, CheckCircle, ParkingSquare } from 'lucide-react'
 import { C, GRAD, BLOQUES, DISPONIBLES, TOTAL } from '../tokens'
 import { Card } from '../components/ui/Card'
 import { GradText } from '../components/ui/GradText'
@@ -157,7 +157,7 @@ export default function Reservar() {
         variant="primary"
         disabled={!valid}
         onClick={() => valid && setDone(true)}
-        icon={CircleCheck}
+        icon={CheckCircle}
         style={{ width: '100%', justifyContent: 'center', padding: '15px', fontSize: 15 }}
       >
         {!bloq1 ? 'Selecciona un horario' : 'Confirmar reserva'}

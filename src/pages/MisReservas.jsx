@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Clock, Calendar, ParkingSquare, CheckCircle, AlertTriangle, X, CircleCheck } from 'lucide-react'
+import { Clock, Calendar, ParkingSquare, CheckCircle, AlertTriangle, X } from 'lucide-react'
 import { C, GRAD } from '../tokens'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -21,7 +21,7 @@ const HISTORIAL = [
 const EST = {
   activa:     { label: 'Activa',     color: '#3de8c8', Icon: CheckCircle    },
   confirmada: { label: 'Confirmada', color: '#5b7eff', Icon: Calendar       },
-  completada: { label: 'Completada', color: '#6b7099', Icon: CircleCheck    },
+  completada: { label: 'Completada', color: '#6b7099', Icon: CheckCircle    },
   'no-show':  { label: 'No-show',    color: '#ff4d6d', Icon: AlertTriangle  },
 }
 
