@@ -1,6 +1,6 @@
 // src/pages/MisReservas.jsx
-import { useState, useEffect } from 'react'
-import { Clock, Calendar, ParkingSquare, CheckCircle, AlertTriangle, X } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Clock, Calendar, ParkingSquare, CheckCircle, AlertTriangle, X, QrCode, Download } from 'lucide-react'
 import { C, GRAD } from '../tokens'
 import { Card }         from '../components/ui/Card'
 import { Badge }        from '../components/ui/Badge'
@@ -20,10 +20,104 @@ const EST = {
   NO_SHOW:     { label: 'No-show',     color: '#ffaa00', Icon: AlertTriangle  },
 }
 
-function ReservaCard({ r, onCancelar, canceling }) {
+// ── Componente QR Image ────────────────────────────────────────────────────
+// Genera QR usando la API pública de QuickChart (sin dependencias npm)
+function QRImage({ value, size = 180 }) {
+  const url = `https://quickchart.io/qr?text=${encodeURIComponent(value)}&size=${size}&dark=3de8c8&light=0d0e1f&margin=1`
+  return (
+    <img
+      src={url}
+      alt="Código QR"
+      width={size}
+      height={size}
+      style={{ borderRadius: 12, display: 'block' }}
+      onError={e => { e.target.style.display = 'none' }}
+    />
+  )
+}
+
+// ── Modal QR ───────────────────────────────────────────────────────────────
+function ModalQR({ reserva, onClose }) {
+  const qrValue = reserva.qrUrl || reserva.qrToken || reserva.codigoQr
+  const size = 260
+
+  const handleDownload = () => {
+    const url = `https://quickchart.io/qr?text=${encodeURIComponent(qrValue)}&size=400&dark=3de8c8&light=0d0e1f&margin=2`
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `qr-reserva-${reserva.codigoEspacio}.png`
+    a.target = '_blank'
+    a.click()
+  }
+
+  return (
+    <div
+      style={{ position:'fixed', inset:0, background:'#00000090', display:'flex', alignItems:'center', justifyContent:'center', zIndex:300 }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ background: C.surface, border:`1px solid ${C.border}`, borderRadius: 20, padding: 32, maxWidth: 360, width: '90%', textAlign: 'center' }}
+      >
+        <p style={{ fontSize: 18, fontWeight: 800, color: C.text, fontFamily: FF, marginBottom: 4 }}>
+          Código QR de acceso
+        </p>
+        <p style={{ fontSize: 12, color: C.muted, fontFamily: FF, marginBottom: 20 }}>
+          Espacio <strong style={{ color: C.teal }}>{reserva.codigoEspacio}</strong> · {fmtFecha(reserva.fechaReserva)}
+        </p>
+
+        {/* QR Image */}
+        <div style={{ display:'flex', justifyContent:'center', marginBottom: 20 }}>
+          <div style={{ padding: 16, background: '#0d0e1f', borderRadius: 16, border:`2px solid ${C.border}` }}>
+            <QRImage value={qrValue} size={size} />
+          </div>
+        </div>
+
+        {/* Horario */}
+        <div style={{ background: C.s2, borderRadius: 10, padding: '10px 16px', marginBottom: 20 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Horario</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFamily: FF }}>
+              {fmtHora(reserva.fechaInicio)} – {fmtHora(reserva.fechaFin)}
+            </span>
+          </div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop: 6 }}>
+            <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Zona</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: FF }}>
+              {reserva.zonaNombre}
+            </span>
+          </div>
+        </div>
+
+        <p style={{ fontSize: 11, color: C.muted, fontFamily: FF, marginBottom: 20 }}>
+          Presenta este QR al ingresar y al salir del parqueo
+        </p>
+
+        <div style={{ display:'flex', gap: 8 }}>
+          <button
+            onClick={handleDownload}
+            style={{ flex:1, padding:'10px', borderRadius:10, background: C.s2, border:`1px solid ${C.border}`, color: C.muted, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:FF, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}
+          >
+            <Download size={14} /> Guardar
+          </button>
+          <button
+            onClick={onClose}
+            style={{ flex:2, padding:'10px', borderRadius:10, border:'none', background: GRAD, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:FF }}
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Tarjeta de reserva ─────────────────────────────────────────────────────
+function ReservaCard({ r, onCancelar, canceling, onVerQR }) {
   const E     = EST[r.estado] || EST.ACTIVA
   const Icon  = E.Icon
   const activa = r.estado === 'ACTIVA'
+  const qrValue = r.qrUrl || r.qrToken || r.codigoQr
 
   return (
     <Card>
@@ -66,17 +160,55 @@ function ReservaCard({ r, onCancelar, canceling }) {
         </div>
       </div>
 
-      {/* QR code si está activa */}
-      {activa && r.codigoQr && (
+      {/* Check-in info si ya hizo */}
+      {r.checkInTime && (
         <div style={{
           marginTop: 10, padding: '8px 12px', borderRadius: 8,
-          background: '#5b7eff10', border: '1px solid #5b7eff25',
+          background: '#3de8c810', border: '1px solid #3de8c825',
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          <span style={{ fontSize: 11, color: C.accent, fontFamily: FF, fontWeight: 600 }}>QR:</span>
-          <span style={{ fontSize: 11, color: C.muted, fontFamily: FF, fontFamily: 'monospace' }}>
-            {r.codigoQr}
+          <CheckCircle size={13} color='#3de8c8' />
+          <span style={{ fontSize: 11, color: '#3de8c8', fontFamily: FF, fontWeight: 600 }}>
+            Check-in: {fmtHora(r.checkInTime)}
           </span>
+          {r.checkOutTime && (
+            <span style={{ fontSize: 11, color: C.muted, fontFamily: FF, marginLeft: 'auto' }}>
+              Salida: {fmtHora(r.checkOutTime)}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* QR preview + botón ver QR completo */}
+      {activa && qrValue && (
+        <div style={{
+          marginTop: 10, padding: '10px 12px', borderRadius: 10,
+          background: '#5b7eff08', border: '1px solid #5b7eff20',
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          {/* Mini QR preview */}
+          <div style={{ flexShrink: 0 }}>
+            <QRImage value={qrValue} size={52} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: FF, marginBottom: 2 }}>
+              Tu código de acceso
+            </p>
+            <p style={{ fontSize: 10, color: C.muted, fontFamily: FF }}>
+              Presenta al ingresar y salir
+            </p>
+          </div>
+          <button
+            onClick={() => onVerQR(r)}
+            style={{
+              flexShrink: 0, padding: '7px 12px', borderRadius: 8,
+              background: GRAD, border: 'none', color: '#fff',
+              fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF,
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}
+          >
+            <QrCode size={12} /> Ver QR
+          </button>
         </div>
       )}
 
@@ -85,7 +217,7 @@ function ReservaCard({ r, onCancelar, canceling }) {
           onClick={() => onCancelar(r.id)}
           disabled={canceling === r.id}
           style={{
-            width: '100%', marginTop: 12,
+            width: '100%', marginTop: 10,
             background: '#ff4d6d12', border: '1px solid #ff4d6d28',
             color: '#ff4d6d', padding: '9px', borderRadius: 10,
             fontSize: 13, fontWeight: 600,
@@ -101,11 +233,13 @@ function ReservaCard({ r, onCancelar, canceling }) {
   )
 }
 
+// ── Página principal ───────────────────────────────────────────────────────
 export default function MisReservas() {
   const [tab,       setTab]       = useState('activas')
   const [reservas,  setReservas]  = useState([])
   const [loading,   setLoading]   = useState(true)
   const [canceling, setCanceling] = useState(null)
+  const [qrModal,   setQrModal]   = useState(null) // reserva para mostrar QR
 
   useEffect(() => {
     auth.fetchAuth('/api/reservas/mis-reservas')
@@ -118,12 +252,9 @@ export default function MisReservas() {
   const cancelar = async id => {
     setCanceling(id)
     try {
-      const res = await auth.fetchAuth(`/api/reservas/${id}/cancelar`, {
-        method: 'PATCH'})
+      const res = await auth.fetchAuth(`/api/reservas/${id}/cancelar`, { method: 'PATCH' })
       if (res.ok) {
-        setReservas(prev => prev.map(r =>
-          r.id === id ? { ...r, estado: 'CANCELADA' } : r
-        ))
+        setReservas(prev => prev.map(r => r.id === id ? { ...r, estado: 'CANCELADA' } : r))
       }
     } catch { /* ignorar */ }
     finally { setCanceling(null) }
@@ -172,7 +303,7 @@ export default function MisReservas() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14 }}>
             {activas.map(r => (
-              <ReservaCard key={r.id} r={r} onCancelar={cancelar} canceling={canceling} />
+              <ReservaCard key={r.id} r={r} onCancelar={cancelar} canceling={canceling} onVerQR={setQrModal} />
             ))}
           </div>
         )
@@ -203,11 +334,21 @@ export default function MisReservas() {
                     {(EST[r.estado] || EST.COMPLETADA).label}
                   </Badge>
                 </div>
+                {/* check-in/out en historial */}
+                {(r.checkInTime || r.checkOutTime) && (
+                  <div style={{ display:'flex', gap:16, marginTop:8 }}>
+                    {r.checkInTime && <span style={{ fontSize:11, color: C.muted, fontFamily: FF }}>Entrada: {fmtHora(r.checkInTime)}</span>}
+                    {r.checkOutTime && <span style={{ fontSize:11, color: C.muted, fontFamily: FF }}>Salida: {fmtHora(r.checkOutTime)}</span>}
+                  </div>
+                )}
               </Card>
             ))}
           </div>
         )
       )}
+
+      {/* Modal QR */}
+      {qrModal && <ModalQR reserva={qrModal} onClose={() => setQrModal(null)} />}
     </div>
   )
 }

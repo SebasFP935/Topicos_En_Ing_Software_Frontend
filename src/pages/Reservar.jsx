@@ -1,7 +1,7 @@
 // src/pages/Reservar.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MapPin, Clock, Calendar, Car, CheckCircle, ChevronRight, AlertTriangle, ParkingSquare } from 'lucide-react'
+import { MapPin, Clock, Calendar, Car, CheckCircle, ChevronRight, AlertTriangle, ParkingSquare, Download, QrCode } from 'lucide-react'
 import { C, GRAD } from '../tokens'
 import { Card }         from '../components/ui/Card'
 import { Badge }        from '../components/ui/Badge'
@@ -16,39 +16,81 @@ const TIPO_VEHICULO_LABEL = {
   AUTO:          { label: 'Auto',         icon: '🚗' },
   MOTO:          { label: 'Moto',         icon: '🏍️' },
   DISCAPACITADO: { label: 'Discapacidad', icon: '♿' },
-  ELECTRICO:     { label: 'Eléctrico',    icon: '⚡' },
 }
 
-// ── Mapa SVG ──────────────────────────────────────────────────────────────────
-function MapaReserva({ zona, espacios, onSelect }) {
+// ── QR Image via QuickChart (sin dependencias) ────────────────────────────
+function QRImage({ value, size = 200 }) {
+  const url = `https://quickchart.io/qr?text=${encodeURIComponent(value)}&size=${size}&dark=3de8c8&light=0d0e1f&margin=1`
+  return (
+    <img
+      src={url}
+      alt="Código QR de reserva"
+      width={size}
+      height={size}
+      style={{ borderRadius: 12, display: 'block' }}
+    />
+  )
+}
+
+// ── Mapa SVG ──────────────────────────────────────────────────────────────
+// idsDisponibles: Set<number> con IDs libres para el horario elegido, o null si aún no se consultó
+function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
   const W = zona?.mapaAncho || 800
   const H = zona?.mapaAlto  || 500
   const plano = zona?.plano || []
 
-  const colorEspacio = (e) => {
-    if (e.estado === 'BLOQUEADO' || e.estado === 'MANTENIMIENTO') return '#ff4d6d'
-    if (e.estado === 'OCUPADO')   return '#ffaa00'
-    return '#3de8c8'
+  // Determina el estado visual del espacio considerando disponibilidad real por horario
+  const estadoVisual = (e) => {
+    // Estados administrativos permanentes — siempre se respetan
+    if (e.estado === 'BLOQUEADO')     return 'BLOQUEADO'
+    if (e.estado === 'MANTENIMIENTO') return 'MANTENIMIENTO'
+    // Si ya tenemos datos de disponibilidad para el horario elegido
+    if (idsDisponibles !== null) {
+      // Si el espacio físicamente está OCUPADO (check-in hecho), lo mostramos así
+      if (e.estado === 'OCUPADO') return 'OCUPADO'
+      // Si no está en la lista de disponibles → tiene reserva en ese horario
+      if (!idsDisponibles.has(e.id)) return 'RESERVADO'
+      return 'DISPONIBLE'
+    }
+    // Sin filtro de horario aún → usar estado físico de la BD
+    return e.estado
+  }
+
+  const colorPorEstado = {
+    DISPONIBLE:   '#3de8c8',
+    RESERVADO:    '#a259ff',
+    OCUPADO:      '#ffaa00',
+    BLOQUEADO:    '#ff4d6d',
+    MANTENIMIENTO:'#ff4d6d',
   }
 
   return (
     <div style={{ width: '100%', overflowX: 'auto', borderRadius: 14, border: `1px solid ${C.border}`, background: C.bg }}>
+      {/* Indicador de carga de disponibilidad */}
+      {idsDisponibles === null && (
+        <div style={{ padding: '8px 14px', background: '#5b7eff10', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 7 }}>
+          <div style={{ width: 12, height: 12, borderRadius: '50%', border: `2px solid ${C.border}`, borderTopColor: C.accent, animation: 'spin .8s linear infinite', flexShrink: 0 }} />
+          <span style={{ fontSize: 11, color: C.muted, fontFamily: FF }}>Consultando disponibilidad para el horario seleccionado...</span>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 360, display: 'block' }}>
-        {plano.map(el => (
-          <rect key={el.id} x={el.x} y={el.y} width={el.w} height={el.h}
+        {plano.map((el, i) => (
+          <rect key={i} x={el.x} y={el.y} width={el.w} height={el.h}
             fill={el.type === 'pared' ? '#1e2035' : '#ffffff08'} rx={el.type === 'pared' ? 2 : 6} />
         ))}
         {espacios.map(e => {
           const c = e.coordenadas || {}
           if (!c.x && c.x !== 0) return null
-          const color = colorEspacio(e)
-          const disponible = e.estado === 'DISPONIBLE'
+          const ev = estadoVisual(e)
+          const color = colorPorEstado[ev] || '#3de8c8'
+          const disponible = ev === 'DISPONIBLE'
           return (
             <g key={e.id} onClick={() => disponible && onSelect(e)}
               style={{ cursor: disponible ? 'pointer' : 'not-allowed' }}>
               <rect x={c.x} y={c.y} width={c.w || 72} height={c.h || 140} rx={8}
                 fill={color + '22'} stroke={color} strokeWidth={disponible ? 2 : 1.5}
-                strokeDasharray={disponible ? 'none' : '4 3'} />
+                strokeDasharray={disponible ? 'none' : '4 3'} opacity={ev === 'DISPONIBLE' ? 1 : 0.75} />
               <text x={c.x + (c.w||72)/2} y={c.y + (c.h||140)/2 - 6}
                 textAnchor="middle" fill={color} fontSize={11} fontWeight={700} fontFamily={FF}>
                 {e.codigo}
@@ -61,8 +103,8 @@ function MapaReserva({ zona, espacios, onSelect }) {
           )
         })}
       </svg>
-      <div style={{ display: 'flex', gap: 18, padding: '10px 14px', borderTop: `1px solid ${C.border}` }}>
-        {[['#3de8c8','Disponible'],['#ffaa00','Ocupado'],['#ff4d6d','Bloqueado']].map(([color, label]) => (
+      <div style={{ display: 'flex', gap: 18, padding: '10px 14px', borderTop: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
+        {[['#3de8c8','Disponible'],['#a259ff','Reservado en este horario'],['#ffaa00','Ocupado'],['#ff4d6d','Bloqueado']].map(([color, label]) => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 10, height: 10, borderRadius: 3, background: color }} />
             <span style={{ fontSize: 11, color: C.muted, fontFamily: FF }}>{label}</span>
@@ -73,7 +115,7 @@ function MapaReserva({ zona, espacios, onSelect }) {
   )
 }
 
-// ── Pasos ─────────────────────────────────────────────────────────────────────
+// ── Indicador de pasos ────────────────────────────────────────────────────
 function Pasos({ actual }) {
   const pasos = ['Sede & Zona', 'Fecha & Horario', 'Espacio', 'Confirmar']
   return (
@@ -104,7 +146,112 @@ function Pasos({ actual }) {
   )
 }
 
-// ── Principal ─────────────────────────────────────────────────────────────────
+// ── Pantalla de éxito con QR ──────────────────────────────────────────────
+function PantallaExito({ reserva, onNuevaReserva, onMisReservas }) {
+  const fmtH = dt => new Date(dt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+  const qrValue = reserva.qrUrl || reserva.qrToken || reserva.codigoQr
+
+  const handleDownload = () => {
+    const url = `https://quickchart.io/qr?text=${encodeURIComponent(qrValue)}&size=400&dark=3de8c8&light=0d0e1f&margin=2`
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `qr-${reserva.codigoEspacio}.png`
+    a.target = '_blank'
+    a.click()
+  }
+
+  return (
+    <div style={{ maxWidth: 520, margin: '0 auto', padding: '60px 24px', textAlign: 'center' }}>
+      {/* Ícono éxito */}
+      <div style={{
+        width: 80, height: 80, borderRadius: '50%',
+        background: C.teal + '20', border: `2px solid ${C.teal}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        margin: '0 auto 20px',
+      }}>
+        <CheckCircle size={40} color={C.teal} />
+      </div>
+
+      <h2 style={{ fontSize: 28, fontWeight: 800, color: C.text, fontFamily: FF, marginBottom: 6 }}>
+        ¡Reserva confirmada!
+      </h2>
+      <p style={{ color: C.muted, fontFamily: FF, marginBottom: 28, fontSize: 14 }}>
+        Tu espacio ha sido reservado exitosamente
+      </p>
+
+      {/* Resumen + QR lado a lado en pantallas grandes */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24, textAlign: 'left' }}>
+
+        {/* Detalles */}
+        <Card>
+          {[
+            ['Espacio',  reserva.codigoEspacio],
+            ['Zona',     reserva.zonaNombre],
+            ['Sede',     reserva.sedeNombre],
+            ['Fecha',    reserva.fechaReserva],
+            ['Horario',  `${fmtH(reserva.fechaInicio)} – ${fmtH(reserva.fechaFin)}`],
+          ].map(([k,v]) => (
+            <div key={k} style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:`1px solid ${C.border}` }}>
+              <span style={{ fontSize:12, color:C.muted, fontFamily:FF }}>{k}</span>
+              <span style={{ fontSize:13, fontWeight:600, color:C.text, fontFamily:FF }}>{v}</span>
+            </div>
+          ))}
+        </Card>
+
+        {/* QR */}
+        <Card style={{ display:'flex', flexDirection:'column', alignItems:'center', gap: 12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap: 6, marginBottom: 4 }}>
+            <QrCode size={14} color={C.accent} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: FF }}>Código de acceso</span>
+          </div>
+          <div style={{ padding: 12, background: '#0d0e1f', borderRadius: 12, border:`1px solid ${C.border}` }}>
+            <QRImage value={qrValue} size={160} />
+          </div>
+          <p style={{ fontSize: 10, color: C.muted, fontFamily: FF, textAlign: 'center' }}>
+            Escanea al entrar y al salir
+          </p>
+          <button
+            onClick={handleDownload}
+            style={{
+              width: '100%', padding: '8px', borderRadius: 8,
+              background: C.s2, border: `1px solid ${C.border}`,
+              color: C.muted, fontSize: 12, fontWeight: 600,
+              cursor: 'pointer', fontFamily: FF,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            }}
+          >
+            <Download size={12} /> Guardar QR
+          </button>
+        </Card>
+      </div>
+
+      {/* Info sobre uso del QR */}
+      <div style={{
+        background: '#5b7eff08', border: '1px solid #5b7eff20',
+        borderRadius: 12, padding: '12px 16px', marginBottom: 24, textAlign: 'left',
+      }}>
+        <p style={{ fontSize: 12, fontWeight: 700, color: C.accent, fontFamily: FF, marginBottom: 6 }}>
+          ¿Cómo usar el QR?
+        </p>
+        <p style={{ fontSize: 12, color: C.muted, fontFamily: FF, lineHeight: 1.6 }}>
+          1. Al llegar, escanea el QR con tu cámara para registrar tu entrada (±5 min del horario).<br />
+          2. Al salir, vuelve a escanear para completar tu reserva.
+        </p>
+      </div>
+
+      <div style={{ display:'flex', gap:10 }}>
+        <Button variant="ghost" onClick={onNuevaReserva} style={{ flex:1, justifyContent:'center' }}>
+          Nueva reserva
+        </Button>
+        <Button variant="primary" onClick={onMisReservas} style={{ flex:1, justifyContent:'center' }}>
+          Mis reservas
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Componente principal ──────────────────────────────────────────────────
 export default function Reservar() {
   const nav = useNavigate()
   const [paso,     setPaso]     = useState(0)
@@ -113,7 +260,8 @@ export default function Reservar() {
 
   const [sedes,   setSedes]   = useState([])
   const [zonas,   setZonas]   = useState([])
-  const [espacios,setEspacios]= useState([])
+  const [espacios,        setEspacios]        = useState([])
+  const [idsDisponibles,  setIdsDisponibles]  = useState(null) // null = sin filtro aún
 
   const [sedeId,       setSedeId]       = useState(null)
   const [zonaId,       setZonaId]       = useState(null)
@@ -144,14 +292,15 @@ export default function Reservar() {
 
   useEffect(() => {
     if (!sedeId) return
-    setZonaId(null); setZonaData(null); setEspacios([])
+    setZonaId(null); setZonaData(null); setEspacios([]); setIdsDisponibles(null)
     auth.fetchAuth(`/api/zonas/sede/${sedeId}`)
       .then(r => r.ok ? r.json() : []).then(setZonas).catch(() => setZonas([]))
   }, [sedeId])
 
+  // Carga todos los espacios de la zona (para tener coordenadas y renderizar el mapa completo)
   useEffect(() => {
     if (!zonaId) return
-    setEspacioSel(null)
+    setEspacioSel(null); setIdsDisponibles(null)
     Promise.all([
       auth.fetchAuth(`/api/zonas/${zonaId}`).then(r => r.json()),
       auth.fetchAuth(`/api/espacios/zona/${zonaId}`).then(r => r.json()),
@@ -161,6 +310,38 @@ export default function Reservar() {
     }).catch(() => {})
   }, [zonaId])
 
+  // Cuando el usuario llega al paso 2, recarga disponibilidad real para el horario elegido
+  // Consulta /api/espacios/disponibles con inicio y fin exactos → devuelve solo los libres
+  // Con eso marcamos el resto como RESERVADO visualmente
+  useEffect(() => {
+    if (paso !== 2 || !zonaId || !fecha || !franjaInicio) return
+
+    const franjaFObj  = HORARIOS.find(h => h.codigo === (franjaFin || franjaInicio))
+    const franjaIObj  = HORARIOS.find(h => h.codigo === franjaInicio)
+    if (!franjaIObj || !franjaFObj) return
+
+    const inicio = `${fecha}T${franjaIObj.inicio}:00`
+    const fin    = `${fecha}T${franjaFObj.fin}:00`
+
+    // El endpoint requiere tipoVehiculo para filtrar, pero necesitamos saber
+    // cuáles están ocupados para CUALQUIER tipo. Por eso consultamos todos los tipos
+    // y unimos los IDs disponibles. Así mostramos correctamente los RESERVADO/OCUPADO.
+    const tipos = ['AUTO', 'MOTO', 'DISCAPACITADO', 'ELECTRICO']
+    Promise.all(
+      tipos.map(tv =>
+        auth.fetchAuth(
+          `/api/espacios/disponibles?zonaId=${zonaId}&tipoVehiculo=${tv}&inicio=${encodeURIComponent(inicio)}&fin=${encodeURIComponent(fin)}`
+        ).then(r => r.ok ? r.json() : []).catch(() => [])
+      )
+    ).then(resultados => {
+      // Unir todos los IDs disponibles de todos los tipos
+      const ids = new Set(resultados.flat().map(e => e.id))
+      setIdsDisponibles(ids)
+      // Deseleccionar espacio si ya no está disponible
+      setEspacioSel(prev => (prev && !ids.has(prev.id) ? null : prev))
+    })
+  }, [paso, zonaId, fecha, franjaInicio, franjaFin, tipoVehiculo])
+
   const handleFranja = (codigo) => {
     if (!franjaInicio) { setFranjaInicio(codigo); setFranjaFin(null); return }
     if (franjaInicio === codigo) { setFranjaInicio(null); setFranjaFin(null); return }
@@ -168,6 +349,11 @@ export default function Reservar() {
     const idxSel = codigo.charCodeAt(0) - 65
     if (idxSel === idxIni + 1) setFranjaFin(codigo)
     else { setFranjaInicio(codigo); setFranjaFin(null) }
+  }
+
+  const resetear = () => {
+    setPaso(0); setReservaCreada(null); setSedeId(null); setZonaId(null)
+    setFecha(''); setFranjaInicio(null); setFranjaFin(null); setEspacioSel(null)
   }
 
   const confirmar = async () => {
@@ -194,41 +380,14 @@ export default function Reservar() {
   const franjaIObj = HORARIOS.find(h => h.codigo === franjaInicio)
   const franjaFObj = HORARIOS.find(h => h.codigo === (franjaFin || franjaInicio))
 
-  // ── Éxito ────────────────────────────────────────────────────────
+  // ── Pantalla de éxito ─────────────────────────────────────────────────
   if (paso === 4 && reservaCreada) {
-    const fmtH = dt => new Date(dt).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'})
     return (
-      <div style={{ maxWidth: 500, margin: '0 auto', padding: '60px 24px', textAlign: 'center' }}>
-        <div style={{ width: 80, height: 80, borderRadius: '50%', background: C.teal+'20', border:`2px solid ${C.teal}`, display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px' }}>
-          <CheckCircle size={40} color={C.teal} />
-        </div>
-        <h2 style={{ fontSize: 28, fontWeight: 800, color: C.text, fontFamily: FF, marginBottom: 8 }}>¡Reserva confirmada!</h2>
-        <p style={{ color: C.muted, fontFamily: FF, marginBottom: 28 }}>Tu espacio ha sido reservado exitosamente</p>
-        <Card style={{ textAlign: 'left', marginBottom: 24 }}>
-          {[
-            ['Espacio',  reservaCreada.codigoEspacio],
-            ['Zona',     reservaCreada.zonaNombre],
-            ['Sede',     reservaCreada.sedeNombre],
-            ['Fecha',    reservaCreada.fechaReserva],
-            ['Horario',  `${fmtH(reservaCreada.fechaInicio)} – ${fmtH(reservaCreada.fechaFin)}`],
-          ].map(([k,v]) => (
-            <div key={k} style={{ display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:`1px solid ${C.border}` }}>
-              <span style={{ fontSize:13, color:C.muted, fontFamily:FF }}>{k}</span>
-              <span style={{ fontSize:13, fontWeight:600, color:C.text, fontFamily:FF }}>{v}</span>
-            </div>
-          ))}
-          <div style={{ padding:'10px 0 0' }}>
-            <p style={{ fontSize:11, color:C.muted, fontFamily:FF, marginBottom:4 }}>Código QR</p>
-            <p style={{ fontSize:11, color:C.accent, fontFamily:'monospace', wordBreak:'break-all' }}>{reservaCreada.codigoQr}</p>
-          </div>
-        </Card>
-        <div style={{ display:'flex', gap:10 }}>
-          <Button variant="secondary" onClick={() => { setPaso(0);setReservaCreada(null);setSedeId(null);setZonaId(null);setFecha('');setFranjaInicio(null);setFranjaFin(null);setEspacioSel(null) }} style={{ flex:1 }}>
-            Nueva reserva
-          </Button>
-          <Button variant="primary" onClick={() => nav('/reservas')} style={{ flex:1 }}>Mis reservas</Button>
-        </div>
-      </div>
+      <PantallaExito
+        reserva={reservaCreada}
+        onNuevaReserva={resetear}
+        onMisReservas={() => nav('/reservas')}
+      />
     )
   }
 
@@ -245,7 +404,7 @@ export default function Reservar() {
       <div style={{ display:'grid', gridTemplateColumns: paso >= 2 ? '1fr 280px' : '1fr', gap: 28, alignItems:'start' }}>
         <div>
 
-          {/* PASO 0 */}
+          {/* PASO 0 — Sede & Zona */}
           {paso === 0 && (
             <div>
               <SectionLabel>Sede</SectionLabel>
@@ -280,7 +439,7 @@ export default function Reservar() {
             </div>
           )}
 
-          {/* PASO 1 */}
+          {/* PASO 1 — Fecha & Horario */}
           {paso === 1 && (
             <div>
               <SectionLabel>Tipo de vehículo</SectionLabel>
@@ -311,13 +470,13 @@ export default function Reservar() {
                 })}
               </div>
               <div style={{ display:'flex', gap:10 }}>
-                <Button variant="secondary" onClick={() => setPaso(0)}>Atrás</Button>
+                <Button variant="ghost" onClick={() => setPaso(0)}>Atrás</Button>
                 <Button variant="primary" disabled={!fecha||!franjaInicio} onClick={() => setPaso(2)} icon={ChevronRight}>Ver mapa</Button>
               </div>
             </div>
           )}
 
-          {/* PASO 2 */}
+          {/* PASO 2 — Selección de espacio */}
           {paso === 2 && (
             <div>
               <SectionLabel>Selecciona tu espacio</SectionLabel>
@@ -326,7 +485,7 @@ export default function Reservar() {
               </p>
               {espacios.length === 0
                 ? <Card><p style={{ color:C.muted,fontFamily:FF,fontSize:13 }}>Cargando espacios...</p></Card>
-                : <MapaReserva zona={zonaData} espacios={espacios} onSelect={e => setEspacioSel(e)} />
+                : <MapaReserva zona={zonaData} espacios={espacios} onSelect={e => setEspacioSel(e)} idsDisponibles={idsDisponibles} />
               }
               {espacioSel && (
                 <Card style={{ marginTop:14, borderColor:C.teal+'40', background:C.teal+'08' }}>
@@ -341,15 +500,16 @@ export default function Reservar() {
                 </Card>
               )}
               <div style={{ display:'flex', gap:10, marginTop:16 }}>
-                <Button variant="secondary" onClick={() => setPaso(1)}>Atrás</Button>
-                <Button variant="primary" onClick={() => setPaso(3)} icon={ChevronRight}>
+                <Button variant="ghost" onClick={() => setPaso(1)}>Atrás</Button>
+                <Button variant="primary" onClick={() => setPaso(3)} icon={ChevronRight}
+                  disabled={espacioSel !== null && idsDisponibles !== null && !idsDisponibles.has(espacioSel.id)}>
                   {espacioSel ? 'Confirmar espacio' : 'Asignación automática'}
                 </Button>
               </div>
             </div>
           )}
 
-          {/* PASO 3 */}
+          {/* PASO 3 — Confirmar */}
           {paso === 3 && (
             <div>
               <SectionLabel>Confirma tu reserva</SectionLabel>
@@ -375,7 +535,7 @@ export default function Reservar() {
                 </div>
               )}
               <div style={{ display:'flex', gap:10 }}>
-                <Button variant="secondary" onClick={() => setPaso(2)} disabled={loading}>Atrás</Button>
+                <Button variant="ghost" onClick={() => setPaso(2)} disabled={loading}>Atrás</Button>
                 <Button variant="primary" onClick={confirmar} disabled={loading} icon={CheckCircle}>
                   {loading ? 'Reservando...' : 'Confirmar reserva'}
                 </Button>
@@ -384,17 +544,17 @@ export default function Reservar() {
           )}
         </div>
 
-        {/* Resumen lateral */}
+        {/* Panel resumen lateral */}
         {paso >= 2 && (
           <div>
             <SectionLabel>Resumen</SectionLabel>
             <Card>
               {[
-                [<MapPin size={14}/>,       sedeSel?.nombre],
+                [<MapPin size={14}/>,        sedeSel?.nombre],
                 [<ParkingSquare size={14}/>, zonaSel?.nombre],
-                [<Calendar size={14}/>,     fecha],
-                [<Clock size={14}/>,        franjaIObj ? `${franjaIObj.inicio} – ${(franjaFObj||franjaIObj).fin}` : ''],
-                [<Car size={14}/>,          TIPO_VEHICULO_LABEL[tipoVehiculo]?.label],
+                [<Calendar size={14}/>,      fecha],
+                [<Clock size={14}/>,         franjaIObj ? `${franjaIObj.inicio} – ${(franjaFObj||franjaIObj).fin}` : ''],
+                [<Car size={14}/>,           TIPO_VEHICULO_LABEL[tipoVehiculo]?.label],
               ].filter(([,v]) => v).map(([icon,val],i) => (
                 <div key={i} style={{ display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:`1px solid ${C.border}` }}>
                   <span style={{ color:C.accent }}>{icon}</span>

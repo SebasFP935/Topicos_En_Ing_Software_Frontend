@@ -7,14 +7,13 @@ import MisReservas   from './pages/MisReservas'
 import AdminDashboard from './pages/AdminDashboard'
 import EditorMapa    from './pages/EditorMapa'
 import Login         from './pages/Login'
+import Escanear      from './pages/Escanear'
 import { auth }      from './utils/auth'
 
-// Ruta protegida — redirige a /login si no hay sesión
 function PrivateRoute({ children }) {
   return auth.isAuthenticated() ? children : <Navigate to="/login" replace />
 }
 
-// Ruta solo para admin
 function AdminRoute({ children }) {
   if (!auth.isAuthenticated()) return <Navigate to="/login" replace />
   if (!auth.isAdmin())         return <Navigate to="/"      replace />
@@ -24,10 +23,13 @@ function AdminRoute({ children }) {
 export default function App() {
   return (
     <Routes>
-      {/* Pública */}
+      {/* Públicas */}
       <Route path="/login" element={<Login />} />
 
-      {/* Protegidas — dentro del Layout (sidebar + bottomnav) */}
+      {/* Ruta pública para escaneo QR — no requiere login */}
+      <Route path="/escanear/:token" element={<Escanear />} />
+
+      {/* Protegidas — dentro del Layout */}
       <Route element={
         <PrivateRoute><Layout /></PrivateRoute>
       }>
@@ -35,7 +37,6 @@ export default function App() {
         <Route path="/reservar" element={<Reservar />} />
         <Route path="/reservas" element={<MisReservas />} />
 
-        {/* Solo admin */}
         <Route path="/admin" element={
           <AdminRoute><AdminDashboard /></AdminRoute>
         } />
@@ -44,7 +45,6 @@ export default function App() {
         } />
       </Route>
 
-      {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
