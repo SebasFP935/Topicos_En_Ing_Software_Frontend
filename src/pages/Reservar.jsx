@@ -53,7 +53,7 @@ function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
   }
 
   return (
-    <div style={{ width: '100%', overflowX: 'auto', borderRadius: 14, border: `1px solid ${C.border}`, background: C.bg }}>
+    <div style={{ width: '100%', overflowX: 'auto', borderRadius: 14, border: `1px solid ${C.border}`, background: C.bg, minHeight: 480 }}>
       {/* Indicador de carga de disponibilidad */}
       {idsDisponibles === null && (
         <div style={{ padding: '8px 14px', background: '#5b7eff10', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -62,7 +62,7 @@ function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 360, display: 'block' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 600, minHeight: 420, display: 'block' }}>
         {plano.map((el, i) => (
           <rect key={i} x={el.x} y={el.y} width={el.w} height={el.h}
             fill={el.type === 'pared' ? '#1e2035' : '#ffffff08'} rx={el.type === 'pared' ? 2 : 6} />

@@ -16,11 +16,13 @@ export const auth = {
     }))
   },
 
-  token()           { return localStorage.getItem(TOKEN_KEY)   },
-  refreshToken()    { return localStorage.getItem(REFRESH_KEY) },
-  user()            { const u = localStorage.getItem(USER_KEY); return u ? JSON.parse(u) : null },
-  isAuthenticated() { return !!localStorage.getItem(TOKEN_KEY) },
-  isAdmin()         { return this.user()?.rol === 'ADMIN' },
+  token()             { return localStorage.getItem(TOKEN_KEY)   },
+  refreshToken()      { return localStorage.getItem(REFRESH_KEY) },
+  user()              { const u = localStorage.getItem(USER_KEY); return u ? JSON.parse(u) : null },
+  isAuthenticated()   { return !!localStorage.getItem(TOKEN_KEY) },
+  isAdmin()           { return this.user()?.rol === 'ADMIN' },
+  isOperador()        { return this.user()?.rol === 'OPERADOR' },
+  isAdminOrOperador() { return ['ADMIN', 'OPERADOR'].includes(this.user()?.rol) },
 
   clear() {
     localStorage.removeItem(TOKEN_KEY)
@@ -35,7 +37,6 @@ export const auth = {
     }
   },
 
-  // Intenta renovar el access token usando el refresh token
   async tryRefresh() {
     const rt = this.refreshToken()
     if (!rt) return false
@@ -53,24 +54,18 @@ export const auth = {
     }
   },
 
-  // Reemplaza fetch() en toda la app — renueva token si expira (401)
   async fetchAuth(url, options = {}) {
     const res = await fetch(url, {
       ...options,
       headers: { ...this.headers(), ...(options.headers || {}) },
     })
-
     if (res.status !== 401) return res
-
-    // Token expirado — intentar refresh
     const ok = await this.tryRefresh()
     if (!ok) {
       this.clear()
       window.location.href = '/login'
       return res
     }
-
-    // Reintentar con el nuevo token
     return fetch(url, {
       ...options,
       headers: { ...this.headers(), ...(options.headers || {}) },
