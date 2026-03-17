@@ -1,30 +1,46 @@
-// Página PÚBLICA — se abre cuando el usuario escanea el QR con la cámara
-// Endpoint: GET /api/reservas/escanear/{token}  (sin autenticación)
+// src/pages/Escanear.jsx
+// Se abre cuando el usuario escanea el QR físico del espacio.
+// Endpoint: GET /api/reservas/escanear/{codigoQr}  (requiere autenticación)
+// El codigoQr es el UUID fijo del Espacio, no de la reserva.
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { CheckCircle, XCircle, Clock, ParkingSquare, LogIn, LogOut } from 'lucide-react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { CheckCircle, XCircle, Clock, ParkingSquare, LogIn, LogOut, AlertTriangle } from 'lucide-react'
 import { C, GRAD } from '../tokens'
+import { auth } from '../utils/auth'
 
 const FF = "'Plus Jakarta Sans', sans-serif"
-
 const fmtHora = iso => iso ? new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''
 
 export default function Escanear() {
-  const { token } = useParams()
-  const [estado,   setEstado]   = useState('cargando') // 'cargando' | 'ok' | 'error'
+  const { codigoQr } = useParams()
+  const navigate = useNavigate()
+  const [estado,    setEstado]    = useState('cargando') // 'cargando' | 'ok' | 'error' | 'no-auth'
   const [resultado, setResultado] = useState(null)
-  const [mensaje,  setMensaje]  = useState('')
+  const [mensaje,   setMensaje]   = useState('')
 
   useEffect(() => {
-    if (!token) { setEstado('error'); setMensaje('Token inválido.'); return }
+    if (!codigoQr) {
+      setEstado('error')
+      setMensaje('Código QR inválido.')
+      return
+    }
 
-    fetch(`/api/reservas/escanear/${token}`)
+    // Verificar si hay sesión activa
+    const token = auth.getToken ? auth.getToken() : localStorage.getItem('accessToken')
+    if (!token) {
+      setEstado('no-auth')
+      return
+    }
+
+    auth.fetchAuth(`/api/reservas/escanear/${codigoQr}`)
       .then(async res => {
         const data = await res.json()
-        if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          setEstado('no-auth')
+        } else if (!res.ok) {
           setEstado('error')
-          setMensaje(data.mensaje || 'No se pudo procesar el QR.')
+          setMensaje(data.mensaje || 'No se pudo procesar el escaneo.')
         } else {
           setEstado('ok')
           setResultado(data)
@@ -32,138 +48,176 @@ export default function Escanear() {
       })
       .catch(() => {
         setEstado('error')
-        setMensaje('No se pudo conectar con el servidor.')
+        setMensaje('Error de conexión. Intenta de nuevo.')
       })
-  }, [token])
+  }, [codigoQr])
 
-  // ── Loading ──────────────────────────────────────────────────────────────
+  // ── Sin sesión ────────────────────────────────────────────────
+  if (estado === 'no-auth') {
+    return (
+      <Pantalla>
+        <Icono color="#f59e0b" bg="rgba(245,158,11,0.12)">
+          <AlertTriangle size={36} color="#f59e0b" />
+        </Icono>
+        <h2 style={h2}>Debes iniciar sesión</h2>
+        <p style={sub}>Para activar tu reserva, primero inicia sesión en la app.</p>
+        <button
+          onClick={() => navigate('/login', { state: { redirect: `/escanear/${codigoQr}` } })}
+          style={btnPrimary}
+        >
+          Iniciar sesión
+        </button>
+      </Pantalla>
+    )
+  }
+
+  // ── Cargando ──────────────────────────────────────────────────
   if (estado === 'cargando') {
     return (
-      <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', border: `3px solid ${C.border}`, borderTopColor: C.accent, animation: 'spin .8s linear infinite', margin: '0 auto 16px' }} />
-          <p style={{ color: C.muted, fontFamily: FF, fontSize: 14 }}>Procesando QR...</p>
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      </div>
+      <Pantalla>
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%',
+          border: `3px solid ${C.border}`, borderTopColor: '#3de8c8',
+          margin: '0 auto 20px',
+          animation: 'spin 0.8s linear infinite',
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+        <p style={{ color: C.muted, fontSize: 14 }}>Procesando escaneo…</p>
+      </Pantalla>
     )
   }
 
-  // ── Error ────────────────────────────────────────────────────────────────
+  // ── Error ─────────────────────────────────────────────────────
   if (estado === 'error') {
     return (
-      <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <div style={{ maxWidth: 360, width: '100%', textAlign: 'center' }}>
-          {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 36 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ParkingSquare size={22} color="#fff" />
-            </div>
-            <span style={{ fontSize: 20, fontWeight: 800, fontFamily: FF, background: GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              NoParking
-            </span>
-          </div>
-
-          <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#ff4d6d18', border: '2px solid #ff4d6d', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-            <XCircle size={40} color="#ff4d6d" />
-          </div>
-
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: C.text, fontFamily: FF, marginBottom: 10 }}>
-            QR inválido
-          </h2>
-          <p style={{ fontSize: 14, color: C.muted, fontFamily: FF, lineHeight: 1.6 }}>
-            {mensaje}
-          </p>
-        </div>
-      </div>
+      <Pantalla>
+        <Icono color="#ff4d6d" bg="rgba(255,77,109,0.12)">
+          <XCircle size={36} color="#ff4d6d" />
+        </Icono>
+        <h2 style={{ ...h2, color: '#ff4d6d' }}>No se pudo procesar</h2>
+        <p style={sub}>{mensaje}</p>
+        <button onClick={() => navigate('/reservas')} style={btnPrimary}>
+          Ver mis reservas
+        </button>
+      </Pantalla>
     )
   }
 
-  // ── Éxito ────────────────────────────────────────────────────────────────
-  const esEntrada  = resultado?.accion === 'CHECK_IN'
-  const color      = esEntrada ? '#3de8c8' : '#5b7eff'
-  const IconAccion = esEntrada ? LogIn : LogOut
+  // ── Éxito ─────────────────────────────────────────────────────
+  const esCheckIn  = resultado?.accion === 'CHECK_IN'
+  const esCheckOut = resultado?.accion === 'CHECK_OUT'
+
+  const colorAccion = esCheckIn ? '#3de8c8' : '#a78bfa'
+  const bgAccion    = esCheckIn ? 'rgba(61,232,200,0.10)' : 'rgba(167,139,250,0.10)'
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div style={{ maxWidth: 380, width: '100%' }}>
+    <Pantalla>
+      {/* Icono */}
+      <Icono color={colorAccion} bg={bgAccion}>
+        {esCheckIn
+          ? <LogIn  size={36} color={colorAccion} />
+          : <LogOut size={36} color={colorAccion} />
+        }
+      </Icono>
 
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 36 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <ParkingSquare size={22} color="#fff" />
-          </div>
-          <span style={{ fontSize: 20, fontWeight: 800, fontFamily: FF, background: GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            NoParking
-          </span>
+      {/* Acción */}
+      <div style={{
+        display: 'inline-block', padding: '4px 16px', borderRadius: 50,
+        background: bgAccion, color: colorAccion,
+        fontSize: 11, fontWeight: 700, letterSpacing: 2,
+        textTransform: 'uppercase', marginBottom: 12,
+      }}>
+        {esCheckIn ? 'Check-in' : 'Check-out'}
+      </div>
+
+      <h2 style={{ ...h2, color: colorAccion }}>
+        {esCheckIn ? '¡Reserva activada!' : '¡Hasta pronto!'}
+      </h2>
+      <p style={sub}>{resultado?.mensaje}</p>
+
+      {/* Info espacio */}
+      <div style={{
+        background: C.surface, border: `1px solid ${C.border}`,
+        borderRadius: 16, padding: '18px 20px', margin: '20px 0',
+        display: 'flex', gap: 14, alignItems: 'center', textAlign: 'left',
+      }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+          background: bgAccion,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <ParkingSquare size={22} color={colorAccion} />
         </div>
-
-        {/* Card resultado */}
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28, textAlign: 'center' }}>
-
-          {/* Ícono acción */}
-          <div style={{
-            width: 88, height: 88, borderRadius: '50%',
-            background: color + '18', border: `2px solid ${color}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 20px',
-          }}>
-            <IconAccion size={44} color={color} />
+        <div>
+          <div style={{ color: C.text, fontWeight: 700, fontSize: 16, marginBottom: 2 }}>
+            Espacio {resultado?.codigoEspacio}
           </div>
-
-          {/* Acción */}
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: color + '14', border: `1px solid ${color}30`,
-            borderRadius: 100, padding: '4px 14px', marginBottom: 14,
-          }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color, fontFamily: FF, letterSpacing: 1, textTransform: 'uppercase' }}>
-              {esEntrada ? 'Entrada registrada' : 'Salida registrada'}
-            </span>
-          </div>
-
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: C.text, fontFamily: FF, marginBottom: 8 }}>
-            {resultado.mensaje}
-          </h2>
-
-          {/* Detalles */}
-          <div style={{ background: C.s2, borderRadius: 12, padding: '14px 18px', marginTop: 20, textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: `1px solid ${C.border}` }}>
-              <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Espacio</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFamily: FF }}>{resultado.codigoEspacio}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: `1px solid ${C.border}` }}>
-              <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Zona</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: FF }}>{resultado.zonaNombre}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: `1px solid ${C.border}` }}>
-              <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Estado espacio</span>
-              <span style={{
-                fontSize: 12, fontWeight: 700, borderRadius: 100, padding: '3px 10px',
-                color: resultado.estadoEspacio === 'OCUPADO' ? '#ffaa00' : '#3de8c8',
-                background: resultado.estadoEspacio === 'OCUPADO' ? '#ffaa0014' : '#3de8c814',
-                border: `1px solid ${resultado.estadoEspacio === 'OCUPADO' ? '#ffaa0030' : '#3de8c830'}`,
-                fontFamily: FF,
-              }}>
-                {resultado.estadoEspacio}
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
-              <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Hora</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: FF, display: 'flex', alignItems: 'center', gap: 5 }}>
-                <Clock size={13} color={C.muted} />
-                {fmtHora(resultado.timestamp)}
-              </span>
-            </div>
-          </div>
-
-          <p style={{ fontSize: 11, color: C.muted, fontFamily: FF, marginTop: 18 }}>
-            {esEntrada
-              ? 'Tu espacio está reservado. Recuerda escanear al salir.'
-              : 'Gracias por usar NoParking. ¡Hasta la próxima!'}
-          </p>
+          <div style={{ color: C.muted, fontSize: 13 }}>{resultado?.zonaNombre}</div>
         </div>
+        <div style={{
+          marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6,
+          color: C.muted, fontSize: 12,
+        }}>
+          <Clock size={13} />
+          {fmtHora(resultado?.timestamp)}
+        </div>
+      </div>
+
+      {/* Mensaje contextual */}
+      <div style={{
+        background: bgAccion, border: `1px solid ${colorAccion}33`,
+        borderRadius: 12, padding: '12px 16px', marginBottom: 24,
+        fontSize: 13, color: colorAccion, lineHeight: 1.5,
+      }}>
+        {esCheckIn
+          ? '✓ Tu reserva está activa. Cuando termines, vuelve a escanear el QR del espacio para registrar tu salida.'
+          : '✓ Tu reserva ha sido completada. ¡Gracias por usar el sistema!'}
+      </div>
+
+      <button onClick={() => navigate('/reservas')} style={btnPrimary}>
+        Ver mis reservas
+      </button>
+    </Pantalla>
+  )
+}
+
+// ── Helpers de layout ─────────────────────────────────────────────────────
+function Pantalla({ children }) {
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: '#06060f', padding: 24, fontFamily: FF,
+    }}>
+      <div style={{
+        width: '100%', maxWidth: 400, textAlign: 'center',
+        background: '#0d0e1f', border: '1px solid #1e2130',
+        borderRadius: 24, padding: 36,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+      }}>
+        {children}
       </div>
     </div>
   )
+}
+
+function Icono({ children, color, bg }) {
+  return (
+    <div style={{
+      width: 72, height: 72, borderRadius: '50%',
+      background: bg, border: `2px solid ${color}`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      margin: '0 auto 20px',
+    }}>
+      {children}
+    </div>
+  )
+}
+
+const h2  = { fontSize: 22, fontWeight: 800, color: '#e8eaf6', marginBottom: 8, fontFamily: FF }
+const sub = { color: '#6b7099', fontSize: 14, lineHeight: 1.6, marginBottom: 8, fontFamily: FF }
+const btnPrimary = {
+  width: '100%', padding: '14px 0', borderRadius: 12,
+  background: 'linear-gradient(135deg, #3de8c8, #5b7eff)',
+  border: 'none', color: '#fff', fontWeight: 700, fontSize: 15,
+  cursor: 'pointer', fontFamily: FF,
 }

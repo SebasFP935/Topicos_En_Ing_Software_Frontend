@@ -1,7 +1,7 @@
 // src/pages/Reservar.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MapPin, Clock, Calendar, Car, CheckCircle, ChevronRight, AlertTriangle, ParkingSquare, Download, QrCode } from 'lucide-react'
+import { MapPin, Clock, Calendar, Car, CheckCircle, ChevronRight, AlertTriangle, ParkingSquare, ScanLine, Info } from 'lucide-react'
 import { C, GRAD } from '../tokens'
 import { Card }         from '../components/ui/Card'
 import { Badge }        from '../components/ui/Badge'
@@ -16,21 +16,9 @@ const TIPO_VEHICULO_LABEL = {
   AUTO:          { label: 'Auto',         icon: '🚗' },
   MOTO:          { label: 'Moto',         icon: '🏍️' },
   DISCAPACITADO: { label: 'Discapacidad', icon: '♿' },
+  ELECTRICO:     { label: 'Eléctrico',    icon: '⚡' },
 }
 
-// ── QR Image via QuickChart (sin dependencias) ────────────────────────────
-function QRImage({ value, size = 200 }) {
-  const url = `https://quickchart.io/qr?text=${encodeURIComponent(value)}&size=${size}&dark=3de8c8&light=0d0e1f&margin=1`
-  return (
-    <img
-      src={url}
-      alt="Código QR de reserva"
-      width={size}
-      height={size}
-      style={{ borderRadius: 12, display: 'block' }}
-    />
-  )
-}
 
 // ── Mapa SVG ──────────────────────────────────────────────────────────────
 // idsDisponibles: Set<number> con IDs libres para el horario elegido, o null si aún no se consultó
@@ -146,104 +134,92 @@ function Pasos({ actual }) {
   )
 }
 
-// ── Pantalla de éxito con QR ──────────────────────────────────────────────
+// ── Pantalla de éxito ────────────────────────────────────────────────────
 function PantallaExito({ reserva, onNuevaReserva, onMisReservas }) {
   const fmtH = dt => new Date(dt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
-  const qrValue = reserva.qrUrl || reserva.qrToken || reserva.codigoQr
-
-  const handleDownload = () => {
-    const url = `https://quickchart.io/qr?text=${encodeURIComponent(qrValue)}&size=400&dark=3de8c8&light=0d0e1f&margin=2`
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `qr-${reserva.codigoEspacio}.png`
-    a.target = '_blank'
-    a.click()
-  }
 
   return (
-    <div style={{ maxWidth: 520, margin: '0 auto', padding: '60px 24px', textAlign: 'center' }}>
+    <div style={{ maxWidth: 480, margin: '0 auto', padding: '48px 24px', textAlign: 'center', fontFamily: FF }}>
       {/* Ícono éxito */}
       <div style={{
         width: 80, height: 80, borderRadius: '50%',
-        background: C.teal + '20', border: `2px solid ${C.teal}`,
+        background: 'rgba(61,232,200,0.12)', border: '2px solid #3de8c8',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         margin: '0 auto 20px',
       }}>
-        <CheckCircle size={40} color={C.teal} />
+        <CheckCircle size={40} color="#3de8c8" />
       </div>
 
-      <h2 style={{ fontSize: 28, fontWeight: 800, color: C.text, fontFamily: FF, marginBottom: 6 }}>
+      <h2 style={{ fontSize: 26, fontWeight: 800, color: C.text, marginBottom: 6 }}>
         ¡Reserva confirmada!
       </h2>
-      <p style={{ color: C.muted, fontFamily: FF, marginBottom: 28, fontSize: 14 }}>
+      <p style={{ color: C.muted, marginBottom: 28, fontSize: 14 }}>
         Tu espacio ha sido reservado exitosamente
       </p>
 
-      {/* Resumen + QR lado a lado en pantallas grandes */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24, textAlign: 'left' }}>
+      {/* Resumen */}
+      <Card style={{ textAlign: 'left', marginBottom: 20 }}>
+        {[
+          ['Espacio',  reserva.codigoEspacio],
+          ['Zona',     reserva.zonaNombre],
+          ['Sede',     reserva.sedeNombre],
+          ['Fecha',    reserva.fechaReserva],
+          ['Horario',  `${fmtH(reserva.fechaInicio)} – ${fmtH(reserva.fechaFin)}`],
+          ['Estado',   'Pendiente de activación'],
+        ].map(([k, v]) => (
+          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: 12, color: C.muted }}>{k}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: k === 'Estado' ? '#f59e0b' : C.text }}>{v}</span>
+          </div>
+        ))}
+      </Card>
 
-        {/* Detalles */}
-        <Card>
+      {/* Cómo activar */}
+      <div style={{
+        background: 'rgba(61,232,200,0.06)', border: '1px solid rgba(61,232,200,0.2)',
+        borderRadius: 14, padding: '16px 18px', marginBottom: 20, textAlign: 'left',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <ScanLine size={16} color="#3de8c8" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#3de8c8' }}>¿Cómo activar tu reserva?</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
-            ['Espacio',  reserva.codigoEspacio],
-            ['Zona',     reserva.zonaNombre],
-            ['Sede',     reserva.sedeNombre],
-            ['Fecha',    reserva.fechaReserva],
-            ['Horario',  `${fmtH(reserva.fechaInicio)} – ${fmtH(reserva.fechaFin)}`],
-          ].map(([k,v]) => (
-            <div key={k} style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:`1px solid ${C.border}` }}>
-              <span style={{ fontSize:12, color:C.muted, fontFamily:FF }}>{k}</span>
-              <span style={{ fontSize:13, fontWeight:600, color:C.text, fontFamily:FF }}>{v}</span>
+            { n: '1', text: `Llega al espacio ${reserva.codigoEspacio} en ${reserva.zonaNombre} dentro de tu horario (puedes llegar hasta 5 min antes).` },
+            { n: '2', text: 'Busca el código QR físico pegado en el espacio y escanéalo con tu cámara — eso activará la reserva.' },
+            { n: '3', text: 'Al terminar, vuelve a escanear el mismo QR del espacio para marcar tu salida.' },
+          ].map(p => (
+            <div key={p.n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <div style={{
+                minWidth: 22, height: 22, borderRadius: '50%',
+                background: 'rgba(61,232,200,0.15)', border: '1.5px solid #3de8c8',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700, color: '#3de8c8', flexShrink: 0,
+              }}>{p.n}</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>{p.text}</div>
             </div>
           ))}
-        </Card>
-
-        {/* QR */}
-        <Card style={{ display:'flex', flexDirection:'column', alignItems:'center', gap: 12 }}>
-          <div style={{ display:'flex', alignItems:'center', gap: 6, marginBottom: 4 }}>
-            <QrCode size={14} color={C.accent} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: FF }}>Código de acceso</span>
-          </div>
-          <div style={{ padding: 12, background: '#0d0e1f', borderRadius: 12, border:`1px solid ${C.border}` }}>
-            <QRImage value={qrValue} size={160} />
-          </div>
-          <p style={{ fontSize: 10, color: C.muted, fontFamily: FF, textAlign: 'center' }}>
-            Escanea al entrar y al salir
-          </p>
-          <button
-            onClick={handleDownload}
-            style={{
-              width: '100%', padding: '8px', borderRadius: 8,
-              background: C.s2, border: `1px solid ${C.border}`,
-              color: C.muted, fontSize: 12, fontWeight: 600,
-              cursor: 'pointer', fontFamily: FF,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-            }}
-          >
-            <Download size={12} /> Guardar QR
-          </button>
-        </Card>
+        </div>
       </div>
 
-      {/* Info sobre uso del QR */}
+      {/* Aviso importante */}
       <div style={{
-        background: '#5b7eff08', border: '1px solid #5b7eff20',
-        borderRadius: 12, padding: '12px 16px', marginBottom: 24, textAlign: 'left',
+        background: 'rgba(167,139,250,0.07)', border: '1px solid rgba(167,139,250,0.2)',
+        borderRadius: 10, padding: '10px 14px', marginBottom: 24,
+        display: 'flex', gap: 10, alignItems: 'flex-start', textAlign: 'left',
       }}>
-        <p style={{ fontSize: 12, fontWeight: 700, color: C.accent, fontFamily: FF, marginBottom: 6 }}>
-          ¿Cómo usar el QR?
-        </p>
-        <p style={{ fontSize: 12, color: C.muted, fontFamily: FF, lineHeight: 1.6 }}>
-          1. Al llegar, escanea el QR con tu cámara para registrar tu entrada (±5 min del horario).<br />
-          2. Al salir, vuelve a escanear para completar tu reserva.
-        </p>
+        <Info size={14} color="#a78bfa" style={{ flexShrink: 0, marginTop: 1 }} />
+        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+          <span style={{ color: '#a78bfa', fontWeight: 600 }}>Importante: </span>
+          el QR que debes escanear es el del espacio físico, no el de la app. Cada espacio tiene su propio código fijo en el parqueo.
+        </div>
       </div>
 
-      <div style={{ display:'flex', gap:10 }}>
-        <Button variant="ghost" onClick={onNuevaReserva} style={{ flex:1, justifyContent:'center' }}>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Button variant="ghost" onClick={onNuevaReserva} style={{ flex: 1, justifyContent: 'center' }}>
           Nueva reserva
         </Button>
-        <Button variant="primary" onClick={onMisReservas} style={{ flex:1, justifyContent:'center' }}>
+        <Button variant="primary" onClick={onMisReservas} style={{ flex: 1, justifyContent: 'center' }}>
           Mis reservas
         </Button>
       </div>

@@ -27,7 +27,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
 
       {/* Ruta pública para escaneo QR — no requiere login */}
-      <Route path="/escanear/:token" element={<Escanear />} />
+      <Route path="/escanear/:codigoQr" element={<Escanear />} />
 
       {/* Protegidas — dentro del Layout */}
       <Route element={
