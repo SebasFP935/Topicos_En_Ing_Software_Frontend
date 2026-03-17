@@ -1,28 +1,53 @@
-// src/utils/auth.js
-const TOKEN_KEY   = 'np_token'
+﻿// src/utils/auth.js
+const TOKEN_KEY = 'np_token'
 const REFRESH_KEY = 'np_refresh'
-const USER_KEY    = 'np_user'
+const USER_KEY = 'np_user'
 
 export const auth = {
   save(response) {
-    localStorage.setItem(TOKEN_KEY,   response.accessToken)
+    localStorage.setItem(TOKEN_KEY, response.accessToken)
     localStorage.setItem(REFRESH_KEY, response.refreshToken)
-    localStorage.setItem(USER_KEY,    JSON.stringify({
-      id:       response.usuarioId,
-      email:    response.email,
-      nombre:   response.nombre,
-      apellido: response.apellido,
-      rol:      response.rol,
-    }))
+    localStorage.setItem(
+      USER_KEY,
+      JSON.stringify({
+        id: response.usuarioId,
+        email: response.email,
+        nombre: response.nombre,
+        apellido: response.apellido,
+        rol: response.rol,
+      })
+    )
   },
 
-  token()             { return localStorage.getItem(TOKEN_KEY)   },
-  refreshToken()      { return localStorage.getItem(REFRESH_KEY) },
-  user()              { const u = localStorage.getItem(USER_KEY); return u ? JSON.parse(u) : null },
-  isAuthenticated()   { return !!localStorage.getItem(TOKEN_KEY) },
-  isAdmin()           { return this.user()?.rol === 'ADMIN' },
-  isOperador()        { return this.user()?.rol === 'OPERADOR' },
-  isAdminOrOperador() { return ['ADMIN', 'OPERADOR'].includes(this.user()?.rol) },
+  token() {
+    return localStorage.getItem(TOKEN_KEY)
+  },
+
+  refreshToken() {
+    return localStorage.getItem(REFRESH_KEY)
+  },
+
+  user() {
+    const raw = localStorage.getItem(USER_KEY)
+    return raw ? JSON.parse(raw) : null
+  },
+
+  isAuthenticated() {
+    return !!localStorage.getItem(TOKEN_KEY)
+  },
+
+  isAdmin() {
+    return this.user()?.rol === 'ADMIN'
+  },
+
+  isOperator() {
+    return this.user()?.rol === 'OPERADOR'
+  },
+
+  isStaff() {
+    const rol = this.user()?.rol
+    return rol === 'ADMIN' || rol === 'OPERADOR'
+  },
 
   clear() {
     localStorage.removeItem(TOKEN_KEY)
@@ -33,19 +58,21 @@ export const auth = {
   headers() {
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.token()}`,
+      Authorization: `Bearer ${this.token()}`,
     }
   },
 
   async tryRefresh() {
     const rt = this.refreshToken()
     if (!rt) return false
+
     try {
       const res = await fetch('/api/auth/refresh', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ refreshToken: rt }),
+        body: JSON.stringify({ refreshToken: rt }),
       })
+
       if (!res.ok) return false
       this.save(await res.json())
       return true
@@ -59,13 +86,16 @@ export const auth = {
       ...options,
       headers: { ...this.headers(), ...(options.headers || {}) },
     })
+
     if (res.status !== 401) return res
-    const ok = await this.tryRefresh()
-    if (!ok) {
+
+    const refreshed = await this.tryRefresh()
+    if (!refreshed) {
       this.clear()
       window.location.href = '/login'
       return res
     }
+
     return fetch(url, {
       ...options,
       headers: { ...this.headers(), ...(options.headers || {}) },

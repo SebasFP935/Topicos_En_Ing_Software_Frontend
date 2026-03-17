@@ -1,548 +1,970 @@
-/**
- * ParkingMap.jsx
- * Componente canvas SVG reutilizable para el plano de parqueo.
- *
- * Props:
- *  mode         : 'editor' | 'reserva'
- *  plano        : { elementos: [{type:'pared'|'pasillo', x,y,w,h}], ancho, alto }
- *  espacios     : [{id, codigo, x,y,w,h, tipoVehiculo, estado}]
- *  onSave       : (plano, espacios) => void   — solo en modo editor
- *  onSelectEspacio : (espacio) => void        — solo en modo reserva
- *  franjaActual : string                      — franja seleccionada (para disponibilidad)
- */
-
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { C, GRAD } from '../tokens'
 
-const GRID    = 20          // px snap
-const FF      = "'Plus Jakarta Sans', sans-serif"
-const W_PARED = '#3a3c5c'
-const W_PAS   = '#1a1c35'
+const FF = "'Plus Jakarta Sans', sans-serif"
+const GRID_RENDER = 8
+const GRID_DRAW_SNAP = 8
+const GRID_MOVE_SNAP = 2
+const MIN_CELL_SIZE = 20
+const MIN_ZOOM = 0.5
+const MAX_ZOOM = 2.5
+const ZOOM_STEP = 0.1
 
-const TIPOS_VEHICULO = ['AUTO', 'MOTO', 'BICICLETA', 'DISCAPACIDAD']
-const TV_COLOR = {
-  AUTO:         '#5b7eff',
-  MOTO:         '#a259ff',
-  BICICLETA:    '#3de8c8',
-  DISCAPACIDAD: '#ffaa00',
+const VEHICLE_TYPES = ['AUTO', 'MOTO', 'DISCAPACITADO', 'ELECTRICO']
+
+const VEHICLE_COLORS = {
+  AUTO: '#5b7eff',
+  MOTO: '#a259ff',
+  DISCAPACITADO: '#ffaa00',
+  ELECTRICO: '#3de8c8',
 }
-const ESTADO_COLOR = {
-  DISPONIBLE:  '#3de8c8',
-  OCUPADO:     '#ff4d6d',
-  BLOQUEADO:   '#6b7099',
-  MANTENIMIENTO: '#ffaa00',
+
+const STATE_COLORS = {
+  DISPONIBLE: '#3de8c8',
+  RESERVADO: '#a259ff',
+  OCUPADO: '#ffaa00',
+  BLOQUEADO: '#ff4d6d',
+  MANTENIMIENTO: '#ff4d6d',
 }
 
-const snap = v => Math.round(v / GRID) * GRID
-const uid  = () => Math.random().toString(36).slice(2, 8)
+const uid = () => Math.random().toString(36).slice(2, 10)
+const snap = (n, step = GRID_MOVE_SNAP) => Math.round(n / step) * step
+const degToRad = (deg) => (deg * Math.PI) / 180
 
-// ── Herramienta botón ─────────────────────────────────────────────────────
-function ToolBtn({ active, onClick, children, title }) {
+function normalizeType(type) {
+  if (!type) return 'wall'
+  if (type === 'pared') return 'wall'
+  if (type === 'pasillo') return 'road'
+  return type
+}
+
+function normalizeElement(el) {
+  return {
+    id: el.id ?? uid(),
+    type: normalizeType(el.type),
+    x: Number(el.x ?? 0),
+    y: Number(el.y ?? 0),
+    w: Number(el.w ?? 80),
+    h: Number(el.h ?? 80),
+  }
+}
+
+function normalizeSpace(space) {
+  const c = space.coordenadas || {}
+  const rawX = space.x ?? c.x
+  const rawY = space.y ?? c.y
+  const rawW = space.w ?? c.w
+  const rawH = space.h ?? c.h
+
+  // Espacios sin coordenadas en BD no deben volver a mostrarse en el editor.
+  if ([rawX, rawY, rawW, rawH].some((v) => v == null)) return null
+
+  return {
+    id: space.id ?? uid(),
+    codigo: space.codigo || '',
+    tipoVehiculo: space.tipoVehiculo || 'AUTO',
+    estado: space.estado || 'DISPONIBLE',
+    x: Number(rawX),
+    y: Number(rawY),
+    w: Number(rawW),
+    h: Number(rawH),
+    angulo: Number(space.angulo ?? c.angulo ?? 0),
+  }
+}
+
+function ToolButton({ active, onClick, children }) {
   return (
     <button
-      title={title}
       onClick={onClick}
       style={{
-        padding: '7px 14px', borderRadius: 8,
+        padding: '7px 10px',
+        borderRadius: 8,
+        border: `1px solid ${active ? 'transparent' : C.border}`,
         background: active ? GRAD : C.s2,
         color: active ? '#fff' : C.muted,
-        fontSize: 12, fontWeight: 700, cursor: 'pointer',
-        fontFamily: FF, transition: 'all .15s',
-        border: `1px solid ${active ? 'transparent' : C.border}`,
+        fontSize: 12,
+        fontWeight: 700,
+        fontFamily: FF,
+        cursor: 'pointer',
       }}
-    >{children}</button>
+    >
+      {children}
+    </button>
   )
 }
 
-// ── Paleta lateral ────────────────────────────────────────────────────────
-function Palette({ tool, setTool, onDelete, seleccionado }) {
-  return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', gap: 6,
-      padding: '12px 10px', background: C.surface,
-      borderRight: `1px solid ${C.border}`, minWidth: 120,
-    }}>
-      <p style={{ fontSize: 10, fontWeight: 700, color: C.muted, fontFamily: FF, marginBottom: 4, letterSpacing: 1 }}>HERRAMIENTA</p>
-      <ToolBtn active={tool === 'select'}   onClick={() => setTool('select')}  title="Seleccionar">↖ Mover</ToolBtn>
-      <ToolBtn active={tool === 'pared'}    onClick={() => setTool('pared')}   title="Dibujar pared">▬ Pared</ToolBtn>
-      <ToolBtn active={tool === 'pasillo'}  onClick={() => setTool('pasillo')} title="Dibujar pasillo">⬜ Pasillo</ToolBtn>
-      <ToolBtn active={tool === 'espacio'}  onClick={() => setTool('espacio')} title="Colocar espacio">🅿 Espacio</ToolBtn>
-
-      <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 8, paddingTop: 8 }}>
-        <p style={{ fontSize: 10, fontWeight: 700, color: C.muted, fontFamily: FF, marginBottom: 6, letterSpacing: 1 }}>LEYENDA</p>
-        {Object.entries(TV_COLOR).map(([tipo, color]) => (
-          <div key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
-            <span style={{ fontSize: 10, color: C.muted, fontFamily: FF }}>{tipo}</span>
-          </div>
-        ))}
-      </div>
-
-      {seleccionado && (
-        <button
-          onClick={onDelete}
-          style={{
-            marginTop: 8, padding: '7px 10px', borderRadius: 8,
-            background: '#ff4d6d18', border: '1px solid #ff4d6d40',
-            color: '#ff4d6d', fontSize: 12, fontWeight: 700,
-            cursor: 'pointer', fontFamily: FF,
-          }}
-        >🗑 Eliminar</button>
-      )}
-    </div>
-  )
-}
-
-// ── Modal nuevo espacio ───────────────────────────────────────────────────
-function ModalEspacio({ rect, onConfirm, onCancel }) {
+function SpaceModal({ onCancel, onConfirm }) {
   const [codigo, setCodigo] = useState('')
-  const [tipo,   setTipo]   = useState('AUTO')
+  const [tipoVehiculo, setTipoVehiculo] = useState('AUTO')
+
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: '#00000080',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200,
-    }}>
-      <div style={{
-        background: C.surface, border: `1px solid ${C.border}`,
-        borderRadius: 16, padding: 28, minWidth: 300,
-      }}>
-        <p style={{ fontSize: 18, fontWeight: 800, color: C.text, fontFamily: FF, marginBottom: 20 }}>
-          Nuevo espacio
-        </p>
-        <label style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Código</label>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: '#00000088',
+        display: 'grid',
+        placeItems: 'center',
+        zIndex: 300,
+      }}
+    >
+      <div
+        style={{
+          width: 320,
+          background: C.surface,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 20,
+          fontFamily: FF,
+        }}
+      >
+        <h3 style={{ margin: '0 0 14px', color: C.text, fontSize: 18 }}>Nuevo espacio</h3>
+
+        <label style={{ display: 'block', color: C.muted, fontSize: 12, marginBottom: 6 }}>Codigo</label>
         <input
-          value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())}
-          placeholder="ej. A-01"
+          value={codigo}
+          onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+          placeholder="A-01"
           style={{
-            display: 'block', width: '100%', marginTop: 4, marginBottom: 14,
-            padding: '9px 12px', borderRadius: 8,
-            background: C.s2, border: `1px solid ${C.border}`,
-            color: C.text, fontSize: 14, fontFamily: FF, boxSizing: 'border-box',
+            width: '100%',
+            boxSizing: 'border-box',
+            padding: '9px 10px',
+            borderRadius: 8,
+            border: `1px solid ${C.border}`,
+            background: C.s2,
+            color: C.text,
+            marginBottom: 12,
+            fontFamily: FF,
           }}
         />
-        <label style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Tipo de vehículo</label>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6, marginBottom: 20 }}>
-          {TIPOS_VEHICULO.map(t => (
-            <button
-              key={t}
-              onClick={() => setTipo(t)}
-              style={{
-                padding: '5px 12px', borderRadius: 6,
-                background: tipo === t ? TV_COLOR[t] + '30' : C.bg,
-                border: `1px solid ${tipo === t ? TV_COLOR[t] : C.border}`,
-                color: tipo === t ? TV_COLOR[t] : C.muted,
-                fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF,
-              }}
-            >{t}</button>
-          ))}
+
+        <label style={{ display: 'block', color: C.muted, fontSize: 12, marginBottom: 6 }}>Tipo vehiculo</label>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 18 }}>
+          {VEHICLE_TYPES.map((t) => {
+            const active = tipoVehiculo === t
+            return (
+              <button
+                key={t}
+                onClick={() => setTipoVehiculo(t)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  border: `1px solid ${active ? VEHICLE_COLORS[t] : C.border}`,
+                  background: active ? `${VEHICLE_COLORS[t]}22` : C.s2,
+                  color: active ? VEHICLE_COLORS[t] : C.muted,
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}
+              >
+                {t}
+              </button>
+            )
+          })}
         </div>
+
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onCancel} style={{
-            flex: 1, padding: '9px', borderRadius: 8,
-            background: C.s2, border: `1px solid ${C.border}`,
-            color: C.muted, fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', fontFamily: FF,
-          }}>Cancelar</button>
+          <button
+            onClick={onCancel}
+            style={{
+              flex: 1,
+              padding: '10px',
+              borderRadius: 8,
+              border: `1px solid ${C.border}`,
+              background: C.s2,
+              color: C.muted,
+              cursor: 'pointer',
+              fontFamily: FF,
+            }}
+          >
+            Cancelar
+          </button>
           <button
             disabled={!codigo.trim()}
-            onClick={() => onConfirm({ codigo: codigo.trim(), tipoVehiculo: tipo })}
+            onClick={() => onConfirm({ codigo: codigo.trim(), tipoVehiculo })}
             style={{
-              flex: 2, padding: '9px', borderRadius: 8, border: 'none',
+              flex: 1.2,
+              padding: '10px',
+              borderRadius: 8,
+              border: 'none',
               background: codigo.trim() ? GRAD : C.border,
-              color: '#fff', fontSize: 13, fontWeight: 700,
-              cursor: codigo.trim() ? 'pointer' : 'default', fontFamily: FF,
+              color: '#fff',
+              cursor: codigo.trim() ? 'pointer' : 'default',
+              fontFamily: FF,
+              fontWeight: 700,
             }}
-          >Confirmar</button>
+          >
+            Confirmar
+          </button>
         </div>
       </div>
     </div>
   )
 }
 
-// ── Modal confirmar reserva ───────────────────────────────────────────────
-function ModalReserva({ espacio, franjas, onConfirm, onCancel }) {
-  const [franja, setFranja] = useState(franjas?.[0]?.id || '')
-  const [fecha,  setFecha]  = useState(new Date().toISOString().split('T')[0])
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, background: '#00000080',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200,
-    }}>
-      <div style={{
-        background: C.surface, border: `1px solid ${C.border}`,
-        borderRadius: 16, padding: 28, minWidth: 320,
-      }}>
-        <p style={{ fontSize: 18, fontWeight: 800, color: C.text, fontFamily: FF, marginBottom: 4 }}>
-          Reservar espacio
-        </p>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          background: TV_COLOR[espacio.tipoVehiculo] + '18',
-          border: `1px solid ${TV_COLOR[espacio.tipoVehiculo]}40`,
-          borderRadius: 8, padding: '5px 12px', marginBottom: 20,
-        }}>
-          <div style={{ width: 8, height: 8, borderRadius: 2, background: TV_COLOR[espacio.tipoVehiculo] }} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: TV_COLOR[espacio.tipoVehiculo], fontFamily: FF }}>
-            {espacio.codigo} · {espacio.tipoVehiculo}
-          </span>
-        </div>
-
-        <label style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Fecha</label>
-        <input
-          type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-          style={{
-            display: 'block', width: '100%', marginTop: 4, marginBottom: 14,
-            padding: '9px 12px', borderRadius: 8,
-            background: C.s2, border: `1px solid ${C.border}`,
-            color: C.text, fontSize: 14, fontFamily: FF, boxSizing: 'border-box',
-          }}
-        />
-        <label style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Franja horaria</label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6, marginBottom: 20 }}>
-          {(franjas || []).map(f => (
-            <button
-              key={f.id}
-              onClick={() => setFranja(f.id)}
-              style={{
-                padding: '10px 14px', borderRadius: 8,
-                background: franja === f.id ? GRAD : C.s2,
-                border: `1px solid ${franja === f.id ? 'transparent' : C.border}`,
-                color: franja === f.id ? '#fff' : C.text,
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                fontFamily: FF, textAlign: 'left',
-                display: 'flex', justifyContent: 'space-between',
-              }}
-            >
-              <span>{f.label}</span>
-              <span style={{ opacity: 0.7 }}>{f.time}</span>
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onCancel} style={{
-            flex: 1, padding: '9px', borderRadius: 8,
-            background: C.s2, border: `1px solid ${C.border}`,
-            color: C.muted, fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', fontFamily: FF,
-          }}>Cancelar</button>
-          <button
-            onClick={() => onConfirm({ espacioId: espacio.id, franjaId: franja, fecha })}
-            style={{
-              flex: 2, padding: '9px', borderRadius: 8, border: 'none',
-              background: GRAD, color: '#fff', fontSize: 13, fontWeight: 700,
-              cursor: 'pointer', fontFamily: FF,
-            }}
-          >Confirmar reserva</button>
-        </div>
-      </div>
-    </div>
-  )
+function pointInsideRotatedRect(pointX, pointY, space) {
+  const cx = space.x + space.w / 2
+  const cy = space.y + space.h / 2
+  const rad = degToRad(-(space.angulo || 0))
+  const dx = pointX - cx
+  const dy = pointY - cy
+  const localX = dx * Math.cos(rad) - dy * Math.sin(rad)
+  const localY = dx * Math.sin(rad) + dy * Math.cos(rad)
+  return Math.abs(localX) <= space.w / 2 && Math.abs(localY) <= space.h / 2
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  COMPONENTE PRINCIPAL
-// ═══════════════════════════════════════════════════════════════════════════
+function clampPositive(value, min = MIN_CELL_SIZE) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return min
+  return Math.max(min, n)
+}
+
+function clampZoom(value) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return 1
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, n))
+}
+
+function parseLocaleNumber(raw) {
+  const text = String(raw ?? '').trim().replace(',', '.')
+  if (!text) return null
+  const n = Number(text)
+  return Number.isFinite(n) ? n : null
+}
+
 export default function ParkingMap({
-  mode = 'reserva',
-  plano: planoInicial,
-  espacios: espaciosIniciales = [],
-  franjas = [],
+  mode = 'editor',
+  plano,
+  espacios,
+  planoImagen,
   onSave,
   onSelectEspacio,
 }) {
-  const ANCHO = planoInicial?.ancho || 800
-  const ALTO  = planoInicial?.alto  || 500
+  const canvasW = plano?.ancho || 1200
+  const canvasH = plano?.alto || 700
+  const viewportRef = useRef(null)
+  const svgRef = useRef(null)
 
-  // ── Estado editor ──────────────────────────────────────────────────────
-  const [tool,         setTool]         = useState('select')
-  const [elementos,    setElementos]    = useState(planoInicial?.elementos || [])
-  const [espacios,     setEspacios]     = useState(espaciosIniciales)
-  const [selId,        setSelId]        = useState(null)
-  const [drawing,      setDrawing]      = useState(null)   // {x,y,w,h}
-  const [modal,        setModal]        = useState(null)   // {rect}
-  const [modalReserva, setModalReserva] = useState(null)   // espacio
+  const [tool, setTool] = useState('select')
+  const [elements, setElements] = useState([])
+  const [spaces, setSpaces] = useState([])
+  const [zoom, setZoom] = useState(1)
+  const [navMode, setNavMode] = useState('cursor')
+  const [isPanning, setIsPanning] = useState(false)
+  const [selected, setSelected] = useState(null)
+  const [draft, setDraft] = useState(null)
+  const [pendingSpaceRect, setPendingSpaceRect] = useState(null)
+  const dragRef = useRef(null)
+  const zoomRef = useRef(1)
 
-  const svgRef = useRef()
-  const dragRef = useRef(null)   // {id, tipo, ox, oy}
+  useEffect(() => {
+    setElements((plano?.elementos || []).map(normalizeElement))
+  }, [plano])
 
-  // ── Coordenadas SVG desde evento ───────────────────────────────────────
-  const getSVGPoint = useCallback(e => {
-    const svg  = svgRef.current
-    const rect = svg.getBoundingClientRect()
-    const scaleX = ANCHO / rect.width
-    const scaleY = ALTO  / rect.height
-    return {
-      x: snap((e.clientX - rect.left) * scaleX),
-      y: snap((e.clientY - rect.top)  * scaleY),
+  useEffect(() => {
+    setSpaces((espacios || []).map(normalizeSpace).filter(Boolean))
+  }, [espacios])
+
+  useEffect(() => {
+    zoomRef.current = zoom
+  }, [zoom])
+
+  useEffect(() => {
+    if (navMode !== 'hand' && dragRef.current?.type === 'pan') {
+      dragRef.current = null
+      setIsPanning(false)
     }
-  }, [ANCHO, ALTO])
+  }, [navMode])
 
-  // ── MOUSE DOWN ─────────────────────────────────────────────────────────
-  const onMouseDown = useCallback(e => {
+  const selectedSpace = useMemo(() => {
+    if (selected?.kind !== 'space') return null
+    return spaces.find((s) => s.id === selected.id) || null
+  }, [selected, spaces])
+
+  const toPoint = (evt, snapStep = null) => {
+    const svg = svgRef.current
+    if (!svg) return { x: 0, y: 0 }
+    const bounds = svg.getBoundingClientRect()
+    const scaleX = canvasW / bounds.width
+    const scaleY = canvasH / bounds.height
+    const rawX = (evt.clientX - bounds.left) * scaleX
+    const rawY = (evt.clientY - bounds.top) * scaleY
+    return {
+      x: snapStep == null ? rawX : snap(rawX, snapStep),
+      y: snapStep == null ? rawY : snap(rawY, snapStep),
+    }
+  }
+
+  const applyZoom = (nextZoom, anchorClient = null) => {
+    const viewport = viewportRef.current
+    const prevZoom = zoomRef.current
+    const targetZoom = clampZoom(nextZoom)
+    if (Math.abs(targetZoom - prevZoom) < 0.001) return
+
+    if (!viewport) {
+      setZoom(targetZoom)
+      return
+    }
+
+    const rect = viewport.getBoundingClientRect()
+    const anchorX = anchorClient?.x ?? rect.left + rect.width / 2
+    const anchorY = anchorClient?.y ?? rect.top + rect.height / 2
+    const worldX = (viewport.scrollLeft + (anchorX - rect.left)) / prevZoom
+    const worldY = (viewport.scrollTop + (anchorY - rect.top)) / prevZoom
+
+    setZoom(targetZoom)
+
+    requestAnimationFrame(() => {
+      viewport.scrollLeft = worldX * targetZoom - (anchorX - rect.left)
+      viewport.scrollTop = worldY * targetZoom - (anchorY - rect.top)
+    })
+  }
+
+  const onViewportWheel = (evt) => {
     if (mode !== 'editor') return
-    const pt = getSVGPoint(e)
+    if (!evt.ctrlKey) return
+    evt.preventDefault()
+    const delta = evt.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP
+    applyZoom(zoomRef.current + delta, { x: evt.clientX, y: evt.clientY })
+  }
+
+  const startPan = (evt) => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+    evt.preventDefault()
+    evt.stopPropagation()
+    dragRef.current = {
+      type: 'pan',
+      startX: evt.clientX,
+      startY: evt.clientY,
+      startScrollLeft: viewport.scrollLeft,
+      startScrollTop: viewport.scrollTop,
+    }
+    setIsPanning(true)
+  }
+
+  const hitTest = (x, y) => {
+    const reversedSpaces = [...spaces].reverse()
+    for (const sp of reversedSpaces) {
+      if (pointInsideRotatedRect(x, y, sp)) return { ...sp, kind: 'space' }
+    }
+
+    const reversedElements = [...elements].reverse()
+    for (const el of reversedElements) {
+      const inside = x >= el.x && x <= el.x + el.w && y >= el.y && y <= el.y + el.h
+      if (inside) return { ...el, kind: 'element' }
+    }
+    return null
+  }
+
+  const onMouseDown = (evt) => {
+    if (mode !== 'editor') return
+    if (navMode === 'hand' || evt.button === 1) {
+      startPan(evt)
+      return
+    }
+    const p = toPoint(evt, tool === 'select' ? null : GRID_DRAW_SNAP)
 
     if (tool === 'select') {
-      // clic en elemento o espacio → seleccionar y preparar drag
-      const hit = [...elementos, ...espacios].find(el =>
-        pt.x >= el.x && pt.x <= el.x + el.w &&
-        pt.y >= el.y && pt.y <= el.y + el.h
-      )
-      setSelId(hit?.id || null)
-      if (hit) {
-        dragRef.current = { id: hit.id, ox: pt.x - hit.x, oy: pt.y - hit.y }
+      const hit = hitTest(p.x, p.y)
+      setSelected(hit ? { id: hit.id, kind: hit.kind } : null)
+
+      if (hit?.kind === 'element') {
+        dragRef.current = { type: 'move-element', id: hit.id, dx: p.x - hit.x, dy: p.y - hit.y }
+      } else if (hit?.kind === 'space') {
+        dragRef.current = { type: 'move-space', id: hit.id, dx: p.x - hit.x, dy: p.y - hit.y }
       }
       return
     }
 
-    // dibujar rectángulo
-    setDrawing({ x: pt.x, y: pt.y, w: 0, h: 0 })
-    setSelId(null)
-  }, [mode, tool, elementos, espacios, getSVGPoint])
+    setSelected(null)
+    setDraft({ x: p.x, y: p.y, w: 0, h: 0 })
+  }
 
-  // ── MOUSE MOVE ─────────────────────────────────────────────────────────
-  const onMouseMove = useCallback(e => {
+  const onMouseMove = (evt) => {
     if (mode !== 'editor') return
-    const pt = getSVGPoint(e)
 
     if (dragRef.current) {
-      const { id, ox, oy } = dragRef.current
-      const mover = arr => arr.map(el =>
-        el.id === id ? { ...el, x: snap(pt.x - ox), y: snap(pt.y - oy) } : el
-      )
-      setElementos(prev => mover(prev))
-      setEspacios(prev => mover(prev))
+      const op = dragRef.current
+
+      if (op.type === 'pan') {
+        const viewport = viewportRef.current
+        if (!viewport) return
+        viewport.scrollLeft = op.startScrollLeft - (evt.clientX - op.startX)
+        viewport.scrollTop = op.startScrollTop - (evt.clientY - op.startY)
+        return
+      }
+
+      const p = toPoint(evt, null)
+
+      if (op.type === 'move-element') {
+        setElements((prev) => prev.map((el) => (el.id === op.id ? { ...el, x: p.x - op.dx, y: p.y - op.dy } : el)))
+        return
+      }
+
+      if (op.type === 'move-space') {
+        setSpaces((prev) => prev.map((sp) => (sp.id === op.id ? { ...sp, x: p.x - op.dx, y: p.y - op.dy } : sp)))
+        return
+      }
+
+      if (op.type === 'rotate-space') {
+        setSpaces((prev) =>
+          prev.map((sp) => {
+            if (sp.id !== op.id) return sp
+            const cx = sp.x + sp.w / 2
+            const cy = sp.y + sp.h / 2
+            const angle = Math.atan2(p.y - cy, p.x - cx) * (180 / Math.PI) + 90
+            return { ...sp, angulo: Number(angle.toFixed(1)) }
+          })
+        )
+        return
+      }
+
+      if (op.type === 'resize-space') {
+        setSpaces((prev) =>
+          prev.map((sp) => {
+            if (sp.id !== op.id) return sp
+
+            const ux = Math.cos(op.rad)
+            const uy = Math.sin(op.rad)
+            const vx = -Math.sin(op.rad)
+            const vy = Math.cos(op.rad)
+
+            const dx = p.x - op.anchorX
+            const dy = p.y - op.anchorY
+
+            const projectedW = dx * ux + dy * uy
+            const projectedH = dx * vx + dy * vy
+
+            const newW = clampPositive(projectedW, MIN_CELL_SIZE)
+            const newH = clampPositive(projectedH, MIN_CELL_SIZE)
+
+            const centerX = op.anchorX + (newW / 2) * ux + (newH / 2) * vx
+            const centerY = op.anchorY + (newW / 2) * uy + (newH / 2) * vy
+
+            return {
+              ...sp,
+              w: newW,
+              h: newH,
+              x: centerX - newW / 2,
+              y: centerY - newH / 2,
+            }
+          })
+        )
+      }
       return
     }
 
-    if (drawing) {
-      setDrawing(prev => ({
+    if (draft) {
+      const p = toPoint(evt, GRID_DRAW_SNAP)
+      setDraft((prev) => ({
         ...prev,
-        w: Math.max(GRID, snap(pt.x - prev.x)),
-        h: Math.max(GRID, snap(pt.y - prev.y)),
+        w: Math.max(GRID_DRAW_SNAP, snap(p.x - prev.x, GRID_DRAW_SNAP)),
+        h: Math.max(GRID_DRAW_SNAP, snap(p.y - prev.y, GRID_DRAW_SNAP)),
       }))
     }
-  }, [mode, drawing, getSVGPoint])
+  }
 
-  // ── MOUSE UP ───────────────────────────────────────────────────────────
-  const onMouseUp = useCallback(e => {
+  const onMouseUp = () => {
     if (mode !== 'editor') return
-    dragRef.current = null
 
-    if (!drawing || drawing.w < GRID || drawing.h < GRID) {
-      setDrawing(null)
+    if (dragRef.current) {
+      if (dragRef.current.type === 'pan') setIsPanning(false)
+      dragRef.current = null
       return
     }
 
-    const rect = { ...drawing, id: uid() }
-
-    if (tool === 'pared' || tool === 'pasillo') {
-      setElementos(prev => [...prev, { ...rect, type: tool }])
-      setDrawing(null)
-    } else if (tool === 'espacio') {
-      setModal({ rect })
-      setDrawing(null)
+    if (!draft) return
+    if (draft.w < GRID_DRAW_SNAP || draft.h < GRID_DRAW_SNAP) {
+      setDraft(null)
+      return
     }
-  }, [mode, tool, drawing])
 
-  // ── Confirmar modal espacio ────────────────────────────────────────────
-  const confirmarEspacio = ({ codigo, tipoVehiculo }) => {
-    setEspacios(prev => [...prev, {
-      ...modal.rect, codigo, tipoVehiculo, estado: 'DISPONIBLE',
-    }])
-    setModal(null)
+    if (tool === 'wall' || tool === 'road') {
+      setElements((prev) => [...prev, { id: uid(), type: tool, x: draft.x, y: draft.y, w: draft.w, h: draft.h }])
+      setDraft(null)
+      return
+    }
+
+    if (tool === 'space') {
+      setPendingSpaceRect({ x: draft.x, y: draft.y, w: draft.w, h: draft.h })
+      setDraft(null)
+    }
   }
 
-  // ── Eliminar seleccionado ──────────────────────────────────────────────
-  const eliminarSeleccionado = () => {
-    setElementos(prev => prev.filter(e => e.id !== selId))
-    setEspacios(prev  => prev.filter(e => e.id !== selId))
-    setSelId(null)
-  }
-
-  // ── Guardar ────────────────────────────────────────────────────────────
-  const guardar = () => {
-    onSave?.({ elementos, ancho: ANCHO, alto: ALTO }, espacios)
-  }
-
-  // ── Clic en espacio (modo reserva) ────────────────────────────────────
-  const clicEspacio = espacio => {
-    if (mode !== 'reserva') return
-    if (espacio.estado !== 'DISPONIBLE') return
-    if (franjas.length > 0) {
-      setModalReserva(espacio)
+  const removeSelected = () => {
+    if (!selected) return
+    if (selected.kind === 'element') {
+      setElements((prev) => prev.filter((e) => e.id !== selected.id))
     } else {
-      onSelectEspacio?.(espacio)
+      setSpaces((prev) => prev.filter((e) => e.id !== selected.id))
     }
+    setSelected(null)
   }
 
-  // ── Render SVG ─────────────────────────────────────────────────────────
-  return (
-    <div style={{ display: 'flex', flex: 1, minHeight: 0, background: C.bg }}>
+  const updateSelectedSpace = (updates) => {
+    if (!selectedSpace) return
+    setSpaces((prev) =>
+      prev.map((sp) => {
+        if (sp.id !== selectedSpace.id) return sp
+        if (typeof updates === 'function') return { ...sp, ...updates(sp) }
+        return { ...sp, ...updates }
+      })
+    )
+  }
 
-      {/* Paleta solo en editor */}
+  const confirmNewSpace = ({ codigo, tipoVehiculo }) => {
+    if (!pendingSpaceRect) return
+    setSpaces((prev) => [
+      ...prev,
+      {
+        id: uid(),
+        codigo,
+        tipoVehiculo,
+        estado: 'DISPONIBLE',
+        x: pendingSpaceRect.x,
+        y: pendingSpaceRect.y,
+        w: pendingSpaceRect.w,
+        h: pendingSpaceRect.h,
+        angulo: 0,
+      },
+    ])
+    setPendingSpaceRect(null)
+  }
+
+  const startRotate = (evt, spaceId) => {
+    evt.stopPropagation()
+    evt.preventDefault()
+    setSelected({ id: spaceId, kind: 'space' })
+    dragRef.current = { type: 'rotate-space', id: spaceId }
+  }
+
+  const startResize = (evt, spaceId) => {
+    evt.stopPropagation()
+    evt.preventDefault()
+    setSelected({ id: spaceId, kind: 'space' })
+    const sp = spaces.find((s) => s.id === spaceId)
+    if (!sp) return
+
+    const rad = degToRad(Number(sp.angulo || 0))
+    const cx = sp.x + sp.w / 2
+    const cy = sp.y + sp.h / 2
+
+    // Anchor fijo en la esquina opuesta al handle (top-left en coordenadas locales).
+    const tlx = -sp.w / 2
+    const tly = -sp.h / 2
+    const anchorX = cx + tlx * Math.cos(rad) - tly * Math.sin(rad)
+    const anchorY = cy + tlx * Math.sin(rad) + tly * Math.cos(rad)
+
+    dragRef.current = { type: 'resize-space', id: spaceId, anchorX, anchorY, rad }
+  }
+
+  const save = () => {
+    onSave?.(
+      {
+        elementos: elements.map((e) => ({ type: e.type, x: e.x, y: e.y, w: e.w, h: e.h })),
+        ancho: canvasW,
+        alto: canvasH,
+      },
+      spaces
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', width: '100%', height: '100%', minHeight: 0, background: C.bg }}>
       {mode === 'editor' && (
-        <Palette
-          tool={tool} setTool={setTool}
-          seleccionado={!!selId}
-          onDelete={eliminarSeleccionado}
-        />
+        <div
+          style={{
+            width: 160,
+            flexShrink: 0,
+            borderRight: `1px solid ${C.border}`,
+            background: C.surface,
+            padding: '10px 8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            fontFamily: FF,
+          }}
+        >
+          <span style={{ color: C.muted, fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>HERRAMIENTA</span>
+          <ToolButton active={tool === 'select'} onClick={() => setTool('select')}>
+            Mover
+          </ToolButton>
+          <ToolButton active={tool === 'wall'} onClick={() => setTool('wall')}>
+            Pared
+          </ToolButton>
+          <ToolButton active={tool === 'road'} onClick={() => setTool('road')}>
+            Pasillo
+          </ToolButton>
+          <ToolButton active={tool === 'space'} onClick={() => setTool('space')}>
+            Espacio
+          </ToolButton>
+
+          <button
+            onClick={removeSelected}
+            disabled={!selected}
+            style={{
+              marginTop: 4,
+              padding: '7px 10px',
+              borderRadius: 8,
+              border: `1px solid ${selected ? '#ff4d6d66' : C.border}`,
+              background: selected ? '#ff4d6d18' : C.s2,
+              color: selected ? '#ff4d6d' : C.muted,
+              cursor: selected ? 'pointer' : 'default',
+              fontSize: 12,
+              fontWeight: 700,
+              fontFamily: FF,
+            }}
+          >
+            Eliminar
+          </button>
+
+          {selectedSpace && (
+            <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 8, paddingTop: 8 }}>
+              <span style={{ color: C.muted, fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>CELDA SELECCIONADA</span>
+              <div style={{ marginTop: 8 }}>
+                <label style={{ display: 'block', color: C.muted, fontSize: 10, marginBottom: 4 }}>Ancho</label>
+                <input
+                  type="number"
+                  value={Math.round(selectedSpace.w)}
+                  min={MIN_CELL_SIZE}
+                  step={1}
+                  onChange={(e) => {
+                    const parsed = parseLocaleNumber(e.target.value)
+                    if (parsed == null) return
+                    const w = clampPositive(parsed, MIN_CELL_SIZE)
+                    updateSelectedSpace((sp) => {
+                      const cx = sp.x + sp.w / 2
+                      return { w, x: cx - w / 2 }
+                    })
+                  }}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '6px 8px',
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.s2,
+                    color: C.text,
+                    fontSize: 11,
+                    fontFamily: FF,
+                  }}
+                />
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <label style={{ display: 'block', color: C.muted, fontSize: 10, marginBottom: 4 }}>Alto</label>
+                <input
+                  type="number"
+                  value={Math.round(selectedSpace.h)}
+                  min={MIN_CELL_SIZE}
+                  step={1}
+                  onChange={(e) => {
+                    const parsed = parseLocaleNumber(e.target.value)
+                    if (parsed == null) return
+                    const h = clampPositive(parsed, MIN_CELL_SIZE)
+                    updateSelectedSpace((sp) => {
+                      const cy = sp.y + sp.h / 2
+                      return { h, y: cy - h / 2 }
+                    })
+                  }}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '6px 8px',
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.s2,
+                    color: C.text,
+                    fontSize: 11,
+                    fontFamily: FF,
+                  }}
+                />
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <label style={{ display: 'block', color: C.muted, fontSize: 10, marginBottom: 4 }}>Angulo (grados)</label>
+                <input
+                  type="number"
+                  value={Number(selectedSpace.angulo || 0).toFixed(1)}
+                  step={0.1}
+                  onChange={(e) => {
+                    const parsed = parseLocaleNumber(e.target.value)
+                    if (parsed == null) return
+                    updateSelectedSpace({ angulo: Number(parsed.toFixed(1)) })
+                  }}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '6px 8px',
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.s2,
+                    color: C.text,
+                    fontSize: 11,
+                    fontFamily: FF,
+                  }}
+                />
+              </div>
+              <p style={{ marginTop: 6, fontSize: 10, color: C.muted }}>Tip: usa el punto sobre la celda para girar y el cuadrado inferior para redimensionar.</p>
+            </div>
+          )}
+
+          <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 8, paddingTop: 8 }}>
+            <span style={{ color: C.muted, fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>TIPOS</span>
+            <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+              {VEHICLE_TYPES.map((t) => (
+                <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: VEHICLE_COLORS[t] }} />
+                  <span style={{ fontSize: 10, color: C.muted }}>{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* Canvas */}
-      <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${ANCHO} ${ALTO}`}
-          style={{
-            width: '100%', maxWidth: ANCHO,
-            display: 'block', cursor: mode === 'editor'
-              ? (tool === 'select' ? 'default' : 'crosshair')
-              : 'default',
-            userSelect: 'none',
-          }}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-        >
-          {/* Fondo */}
-          <rect x={0} y={0} width={ANCHO} height={ALTO} fill={C.bg} />
+      <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+        {mode === 'editor' && (
+          <div
+            style={{
+              position: 'absolute',
+              left: 14,
+              top: 14,
+              zIndex: 20,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 8px',
+              borderRadius: 10,
+              border: `1px solid ${C.border}`,
+              background: '#11142ae6',
+              backdropFilter: 'blur(4px)',
+              fontFamily: FF,
+            }}
+          >
+            <button
+              onClick={() => setNavMode('cursor')}
+              style={{
+                borderRadius: 6,
+                border: `1px solid ${navMode === 'cursor' ? '#5b7effaa' : C.border}`,
+                background: navMode === 'cursor' ? '#5b7eff25' : C.s2,
+                color: navMode === 'cursor' ? '#8fa5ff' : C.muted,
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '4px 8px',
+              }}
+            >
+              Cursor
+            </button>
+            <button
+              onClick={() => setNavMode('hand')}
+              style={{
+                borderRadius: 6,
+                border: `1px solid ${navMode === 'hand' ? '#5b7effaa' : C.border}`,
+                background: navMode === 'hand' ? '#5b7eff25' : C.s2,
+                color: navMode === 'hand' ? '#8fa5ff' : C.muted,
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '4px 8px',
+              }}
+            >
+              Mano
+            </button>
+            <button
+              onClick={() => applyZoom(zoom - ZOOM_STEP)}
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 6,
+                border: `1px solid ${C.border}`,
+                background: C.s2,
+                color: C.text,
+                cursor: 'pointer',
+                lineHeight: 1,
+              }}
+            >
+              -
+            </button>
+            <button
+              onClick={() => applyZoom(1)}
+              style={{
+                borderRadius: 6,
+                border: `1px solid ${C.border}`,
+                background: C.s2,
+                color: C.muted,
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '4px 7px',
+              }}
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              onClick={() => applyZoom(zoom + ZOOM_STEP)}
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 6,
+                border: `1px solid ${C.border}`,
+                background: C.s2,
+                color: C.text,
+                cursor: 'pointer',
+                lineHeight: 1,
+              }}
+            >
+              +
+            </button>
+          </div>
+        )}
 
-          {/* Grid (solo editor) */}
+        <div ref={viewportRef} onWheel={onViewportWheel} style={{ position: 'absolute', inset: 0, overflow: 'auto' }}>
+          <div style={{ width: `${Math.round(canvasW * zoom)}px`, height: `${Math.round(canvasH * zoom)}px`, transformOrigin: 'top left' }}>
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${canvasW} ${canvasH}`}
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              cursor:
+                mode === 'editor'
+                  ? isPanning
+                    ? 'grabbing'
+                    : navMode === 'hand'
+                      ? 'grab'
+                      : tool === 'select'
+                        ? 'default'
+                        : 'crosshair'
+                  : 'default',
+            }}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
+          >
+          <rect x={0} y={0} width={canvasW} height={canvasH} fill={C.bg} />
+
+          {planoImagen && <image href={planoImagen} x={0} y={0} width={canvasW} height={canvasH} preserveAspectRatio="xMidYMid meet" opacity={0.92} />}
+
           {mode === 'editor' && (
             <g opacity={0.08}>
-              {Array.from({ length: Math.ceil(ANCHO / GRID) }).map((_, i) => (
-                <line key={'v'+i} x1={i*GRID} y1={0} x2={i*GRID} y2={ALTO} stroke={C.muted} strokeWidth={0.5} />
+              {Array.from({ length: Math.ceil(canvasW / GRID_RENDER) }).map((_, i) => (
+                <line key={`gv-${i}`} x1={i * GRID_RENDER} y1={0} x2={i * GRID_RENDER} y2={canvasH} stroke={C.muted} strokeWidth={0.5} />
               ))}
-              {Array.from({ length: Math.ceil(ALTO / GRID) }).map((_, i) => (
-                <line key={'h'+i} x1={0} y1={i*GRID} x2={ANCHO} y2={i*GRID} stroke={C.muted} strokeWidth={0.5} />
+              {Array.from({ length: Math.ceil(canvasH / GRID_RENDER) }).map((_, i) => (
+                <line key={`gh-${i}`} x1={0} y1={i * GRID_RENDER} x2={canvasW} y2={i * GRID_RENDER} stroke={C.muted} strokeWidth={0.5} />
               ))}
             </g>
           )}
 
-          {/* Elementos decorativos (paredes, pasillos) */}
-          {elementos.map(el => (
-            <g key={el.id}>
-              <rect
-                x={el.x} y={el.y} width={el.w} height={el.h}
-                fill={el.type === 'pared' ? W_PARED : W_PAS}
-                stroke={selId === el.id ? '#5b7eff' : (el.type === 'pared' ? '#4a4c6c' : '#2a2c4c')}
-                strokeWidth={selId === el.id ? 2 : 1}
-                rx={el.type === 'pasillo' ? 4 : 2}
-              />
-              {mode === 'editor' && (
-                <text
-                  x={el.x + el.w/2} y={el.y + el.h/2 + 4}
-                  textAnchor="middle" fontSize={9}
-                  fill={C.muted} fontFamily={FF} fontWeight={600}
-                  pointerEvents="none"
-                >{el.type === 'pared' ? 'PARED' : 'PASILLO'}</text>
-              )}
-            </g>
-          ))}
+          {elements.map((el) => {
+            const isSelected = selected?.id === el.id && selected?.kind === 'element'
+            const fill = normalizeType(el.type) === 'wall' ? '#1f2136' : '#ffffff14'
+            const stroke = isSelected ? '#5b7eff' : '#4d5071'
+            return <rect key={el.id} x={el.x} y={el.y} width={el.w} height={el.h} fill={fill} stroke={stroke} strokeWidth={isSelected ? 2 : 1} rx={4} />
+          })}
 
-          {/* Rectángulo en construcción */}
-          {drawing && (
-            <rect
-              x={drawing.x} y={drawing.y} width={drawing.w || 1} height={drawing.h || 1}
-              fill={tool === 'espacio' ? '#5b7eff18' : (tool === 'pared' ? '#3a3c5c80' : '#1a1c3580')}
-              stroke={tool === 'espacio' ? '#5b7eff' : C.muted}
-              strokeWidth={1.5} strokeDasharray="4 3" rx={2}
-            />
-          )}
-
-          {/* Espacios de parqueo */}
-          {espacios.map(esp => {
-            const disponible = esp.estado === 'DISPONIBLE'
-            const color  = mode === 'reserva'
-              ? (disponible ? ESTADO_COLOR.DISPONIBLE : ESTADO_COLOR[esp.estado] || C.muted)
-              : TV_COLOR[esp.tipoVehiculo] || C.accent
-            const isSel = selId === esp.id
-            const fontSize = Math.min(esp.w, esp.h) < 40 ? 8 : 10
+          {spaces.map((sp) => {
+            const isSelected = selected?.id === sp.id && selected?.kind === 'space'
+            const color = mode === 'editor' ? VEHICLE_COLORS[sp.tipoVehiculo] || C.accent : STATE_COLORS[sp.estado] || C.accent
+            const isAvailable = sp.estado === 'DISPONIBLE'
+            const cx = sp.x + sp.w / 2
+            const cy = sp.y + sp.h / 2
+            const angulo = Number(sp.angulo || 0)
 
             return (
-              <g
-                key={esp.id}
-                onClick={() => {
-                  if (mode === 'editor') { setSelId(esp.id); return }
-                  clicEspacio(esp)
-                }}
-                style={{ cursor: mode === 'reserva' && disponible ? 'pointer' : mode === 'editor' ? 'pointer' : 'not-allowed' }}
-              >
-                <rect
-                  x={esp.x + 2} y={esp.y + 2}
-                  width={esp.w - 4} height={esp.h - 4}
-                  fill={color + '20'}
-                  stroke={isSel ? '#fff' : color}
-                  strokeWidth={isSel ? 2.5 : 1.5}
-                  rx={4}
-                />
-                {/* Indicador disponibilidad en modo reserva */}
-                {mode === 'reserva' && (
-                  <circle
-                    cx={esp.x + esp.w - 8} cy={esp.y + 8}
-                    r={4}
-                    fill={disponible ? ESTADO_COLOR.DISPONIBLE : ESTADO_COLOR[esp.estado] || C.muted}
+              <g key={sp.id} transform={`translate(${cx} ${cy}) rotate(${angulo})`}>
+                <g
+                  onClick={() => {
+                    if (mode === 'editor') {
+                      setSelected({ id: sp.id, kind: 'space' })
+                      return
+                    }
+                    if (isAvailable) onSelectEspacio?.(sp)
+                  }}
+                  style={{ cursor: mode === 'editor' ? 'pointer' : isAvailable ? 'pointer' : 'not-allowed' }}
+                >
+                  <rect
+                    x={-sp.w / 2}
+                    y={-sp.h / 2}
+                    width={sp.w}
+                    height={sp.h}
+                    rx={8}
+                    fill={`${color}22`}
+                    stroke={isSelected ? '#fff' : color}
+                    strokeWidth={isSelected ? 2.4 : 1.6}
                   />
-                )}
-                <text
-                  x={esp.x + esp.w/2} y={esp.y + esp.h/2 - (mode === 'reserva' ? 3 : 2)}
-                  textAnchor="middle"
-                  fontSize={fontSize}
-                  fontWeight={700}
-                  fill={color}
-                  fontFamily={FF}
-                  pointerEvents="none"
-                >{esp.codigo}</text>
-                {mode === 'reserva' && (
-                  <text
-                    x={esp.x + esp.w/2} y={esp.y + esp.h/2 + fontSize + 1}
-                    textAnchor="middle"
-                    fontSize={fontSize - 1}
-                    fill={color} opacity={0.6}
-                    fontFamily={FF} pointerEvents="none"
-                  >{esp.tipoVehiculo?.slice(0, 4)}</text>
+                  <text x={0} y={-4} textAnchor="middle" fill={color} fontSize={11} fontWeight={700} fontFamily={FF}>
+                    {sp.codigo}
+                  </text>
+                  <text x={0} y={10} textAnchor="middle" fill={color} fontSize={9} fontFamily={FF} opacity={0.85}>
+                    {sp.tipoVehiculo}
+                  </text>
+                </g>
+
+                {mode === 'editor' && isSelected && (
+                  <g>
+                    <line x1={0} y1={-sp.h / 2} x2={0} y2={-sp.h / 2 - 16} stroke="#ffffffcc" strokeWidth={1.2} />
+                    <circle
+                      cx={0}
+                      cy={-sp.h / 2 - 22}
+                      r={5.5}
+                      fill="#5b7eff"
+                      stroke="#ffffff"
+                      strokeWidth={1.2}
+                      style={{ cursor: 'grab' }}
+                      onMouseDown={(evt) => startRotate(evt, sp.id)}
+                    />
+                    <rect
+                      x={sp.w / 2 - 5}
+                      y={sp.h / 2 - 5}
+                      width={10}
+                      height={10}
+                      rx={2}
+                      fill="#5b7eff"
+                      stroke="#ffffff"
+                      strokeWidth={1}
+                      style={{ cursor: 'nwse-resize' }}
+                      onMouseDown={(evt) => startResize(evt, sp.id)}
+                    />
+                  </g>
                 )}
               </g>
             )
           })}
-        </svg>
+
+          {draft && (
+            <rect x={draft.x} y={draft.y} width={draft.w} height={draft.h} fill="#5b7eff1a" stroke="#5b7eff" strokeDasharray="5 4" strokeWidth={1.4} rx={4} />
+          )}
+          </svg>
+        </div>
+        </div>
+
+        {mode === 'editor' && (
+          <div style={{ position: 'absolute', right: 18, bottom: 18 }}>
+            <button
+              onClick={save}
+              style={{
+                border: 'none',
+                borderRadius: 10,
+                padding: '10px 20px',
+                background: GRAD,
+                color: '#fff',
+                cursor: 'pointer',
+                fontFamily: FF,
+                fontWeight: 700,
+                boxShadow: '0 4px 18px #5b7eff55',
+              }}
+            >
+              Guardar mapa
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Barra guardar (solo editor) */}
-      {mode === 'editor' && (
-        <div style={{
-          position: 'absolute', bottom: 20, right: 20,
-          display: 'flex', gap: 8,
-        }}>
-          <button
-            onClick={guardar}
-            style={{
-              padding: '10px 24px', borderRadius: 10, border: 'none',
-              background: GRAD, color: '#fff', fontSize: 14,
-              fontWeight: 700, cursor: 'pointer', fontFamily: FF,
-              boxShadow: '0 4px 20px #5b7eff40',
-            }}
-          >💾 Guardar mapa</button>
-        </div>
-      )}
-
-      {/* Modales */}
-      {modal && (
-        <ModalEspacio
-          rect={modal.rect}
-          onConfirm={confirmarEspacio}
-          onCancel={() => setModal(null)}
-        />
-      )}
-      {modalReserva && (
-        <ModalReserva
-          espacio={modalReserva}
-          franjas={franjas}
-          onConfirm={data => { onSelectEspacio?.(data); setModalReserva(null) }}
-          onCancel={() => setModalReserva(null)}
-        />
-      )}
+      {pendingSpaceRect && <SpaceModal onCancel={() => setPendingSpaceRect(null)} onConfirm={confirmNewSpace} />}
     </div>
   )
 }
