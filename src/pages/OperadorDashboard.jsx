@@ -5,21 +5,20 @@ import {
   Clock, CheckCircle, Map, RefreshCw,
   AlertTriangle, Calendar, ScanLine, X,
 } from 'lucide-react'
-import { C, GRAD } from '../tokens'
+import { C, GRAD, MAIN_TITLE_SIZE } from '../tokens'
 import { Card } from '../components/ui/Card'
-import { GradText } from '../components/ui/GradText'
 import { auth } from '../utils/auth'
 
-const FF = "'Plus Jakarta Sans', sans-serif"
+const FF = 'var(--ff-apple)'
 
 const fmtH = dt => dt ? new Date(dt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '—'
 
 const ESTADO = {
-  PENDIENTE_ACTIVACION: { label: 'Pendiente',  color: '#f59e0b' },
-  ACTIVA:               { label: 'Activa',      color: '#3de8c8' },
-  COMPLETADA:           { label: 'Completada',  color: '#5b7eff' },
+  PENDIENTE_ACTIVACION: { label: 'Pendiente',  color: '#ff6b88' },
+  ACTIVA:               { label: 'Activa',      color: '#ff4d6d' },
+  COMPLETADA:           { label: 'Completada',  color: '#7ba5ff' },
   CANCELADA:            { label: 'Cancelada',   color: '#ff4d6d' },
-  NO_SHOW:              { label: 'No-show',      color: '#ffaa00' },
+  NO_SHOW:              { label: 'No-show',      color: '#ff6b88' },
 }
 
 // ── KPI Card ────────────────────────────────────────────────────────────────
@@ -131,11 +130,12 @@ export default function OperadorDashboard() {
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px 72px', fontFamily: FF }}>
+      <div style={{ borderRadius: 28, border: `1px solid ${C.border}`, background: 'linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.02) 45%, rgba(255,255,255,.01)), #07090d', padding: '28px 22px 30px', boxShadow: '0 22px 52px rgba(0,0,0,.36)' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800 }}><GradText>Panel Operador</GradText></h1>
+          <h1 style={{ fontSize: MAIN_TITLE_SIZE, fontWeight: 800, color: C.text, letterSpacing: '-.03em' }}>Panel Operador</h1>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
             {new Date().toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
@@ -158,10 +158,10 @@ export default function OperadorDashboard() {
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 28 }}>
-        <KpiCard label="Pendientes"  val={pendientes}  color="#f59e0b" Icon={Clock}         loading={loading} />
-        <KpiCard label="Activas"     val={activas}     color="#3de8c8" Icon={CheckCircle}   loading={loading} />
-        <KpiCard label="Completadas" val={completadas}  color="#5b7eff" Icon={CheckCircle}   loading={loading} />
-        <KpiCard label="Total hoy"   val={reservas.length} color="#a259ff" Icon={Calendar}  loading={loading} />
+        <KpiCard label="Pendientes"  val={pendientes}  color="#ff6b88" Icon={Clock}         loading={loading} />
+        <KpiCard label="Activas"     val={activas}     color="#ff4d6d" Icon={CheckCircle}   loading={loading} />
+        <KpiCard label="Completadas" val={completadas}  color="#7ba5ff" Icon={CheckCircle}   loading={loading} />
+        <KpiCard label="Total hoy"   val={reservas.length} color="#8d6bff" Icon={Calendar}  loading={loading} />
       </div>
 
       {/* Procesar QR manualmente */}
@@ -190,7 +190,7 @@ export default function OperadorDashboard() {
           </button>
         </div>
         {manualMsg && (
-          <div style={{ marginTop: 10, padding: '9px 14px', borderRadius: 8, background: manualMsg.tipo === 'success' ? '#3de8c814' : '#ff4d6d14', border: `1px solid ${manualMsg.tipo === 'success' ? '#3de8c830' : '#ff4d6d30'}`, color: manualMsg.tipo === 'success' ? '#3de8c8' : '#ff4d6d', fontSize: 13, fontFamily: FF }}>
+          <div style={{ marginTop: 10, padding: '9px 14px', borderRadius: 8, background: manualMsg.tipo === 'success' ? '#ff4d6d14' : '#ff4d6d14', border: `1px solid ${manualMsg.tipo === 'success' ? '#ff4d6d30' : '#ff4d6d30'}`, color: manualMsg.tipo === 'success' ? '#ff4d6d' : '#ff4d6d', fontSize: 13, fontFamily: FF }}>
             {manualMsg.msg}
           </div>
         )}
@@ -242,13 +242,13 @@ export default function OperadorDashboard() {
                     </td>
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       {r.checkInTime
-                        ? <span style={{ fontSize: 12, color: '#3de8c8', fontWeight: 600, fontFamily: FF }}>✓ {fmtH(r.checkInTime)}</span>
+                        ? <span style={{ fontSize: 12, color: '#ff4d6d', fontWeight: 600, fontFamily: FF }}>✓ {fmtH(r.checkInTime)}</span>
                         : <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>—</span>
                       }
                     </td>
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       {r.checkOutTime
-                        ? <span style={{ fontSize: 12, color: '#5b7eff', fontWeight: 600, fontFamily: FF }}>✓ {fmtH(r.checkOutTime)}</span>
+                        ? <span style={{ fontSize: 12, color: '#7ba5ff', fontWeight: 600, fontFamily: FF }}>✓ {fmtH(r.checkOutTime)}</span>
                         : <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>—</span>
                       }
                     </td>
@@ -261,7 +261,7 @@ export default function OperadorDashboard() {
                           <button
                             disabled={actionLoading === r.id}
                             onClick={() => doAccion(r, 'checkin')}
-                            style={{ padding: '5px 12px', borderRadius: 7, background: '#3de8c814', border: '1px solid #3de8c830', color: '#3de8c8', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF, opacity: actionLoading === r.id ? 0.5 : 1 }}
+                            style={{ padding: '5px 12px', borderRadius: 7, background: '#ff4d6d14', border: '1px solid #ff4d6d30', color: '#ff4d6d', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF, opacity: actionLoading === r.id ? 0.5 : 1 }}
                           >
                             {actionLoading === r.id ? '…' : 'Check-in'}
                           </button>
@@ -270,7 +270,7 @@ export default function OperadorDashboard() {
                           <button
                             disabled={actionLoading === r.id}
                             onClick={() => doAccion(r, 'checkout')}
-                            style={{ padding: '5px 12px', borderRadius: 7, background: '#a259ff14', border: '1px solid #a259ff30', color: '#a259ff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF, opacity: actionLoading === r.id ? 0.5 : 1 }}
+                            style={{ padding: '5px 12px', borderRadius: 7, background: '#8d6bff14', border: '1px solid #8d6bff30', color: '#8d6bff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF, opacity: actionLoading === r.id ? 0.5 : 1 }}
                           >
                             {actionLoading === r.id ? '…' : 'Check-out'}
                           </button>
@@ -286,12 +286,14 @@ export default function OperadorDashboard() {
       </div>
 
       {/* Aviso QR */}
-      <div style={{ marginTop: 20, padding: '12px 16px', background: '#5b7eff0a', border: '1px solid #5b7eff20', borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+      <div style={{ marginTop: 20, padding: '12px 16px', background: '#7ba5ff0a', border: '1px solid #7ba5ff20', borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <AlertTriangle size={14} color={C.accent} style={{ marginTop: 1, flexShrink: 0 }} />
         <p style={{ fontSize: 12, color: C.muted, fontFamily: FF, lineHeight: 1.6 }}>
           El código QR de la reserva está en el correo/ticket del usuario. Para el check-in/out automático, el usuario puede escanear directamente el <strong style={{ color: C.text }}>QR físico del slot</strong> de parqueo con su cámara.
         </p>
       </div>
+      </div>
     </div>
   )
 }
+

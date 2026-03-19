@@ -1,22 +1,26 @@
 // src/pages/Reservar.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MapPin, Clock, Calendar, Car, CheckCircle, ChevronRight, AlertTriangle, ParkingSquare, ScanLine, Info } from 'lucide-react'
-import { C, GRAD } from '../tokens'
+import { MapPin, Clock, Calendar, Car, Bike, Accessibility, Zap, CheckCircle, ChevronRight, AlertTriangle, ParkingSquare, ScanLine, Info } from 'lucide-react'
+import { C, MAIN_TITLE_SIZE } from '../tokens'
 import { Card }         from '../components/ui/Card'
 import { Badge }        from '../components/ui/Badge'
-import { GradText }     from '../components/ui/GradText'
 import { SectionLabel } from '../components/ui/SectionLabel'
 import { Button }       from '../components/ui/Button'
 import { auth }         from '../utils/auth'
 
-const FF = "'Plus Jakarta Sans', sans-serif"
+const FF = 'var(--ff-apple)'
+const ACTIVE_BG = 'linear-gradient(138deg, rgba(255,77,109,.26) 0%, rgba(123,165,255,.22) 100%), #121722'
+const ACTIVE_BORDER = 'rgba(132,168,255,.52)'
+const ACTIVE_TEXT = '#f4f7ff'
+const ACTIVE_MUTED = 'rgba(224,233,250,.78)'
+const ACTIVE_SHADOW = 'inset 0 1px 0 rgba(255,255,255,.09), 0 12px 26px rgba(0,0,0,.36)'
 
 const TIPO_VEHICULO_LABEL = {
-  AUTO:          { label: 'Auto',         icon: '🚗' },
-  MOTO:          { label: 'Moto',         icon: '🏍️' },
-  DISCAPACITADO: { label: 'Discapacidad', icon: '♿' },
-  ELECTRICO:     { label: 'Eléctrico',    icon: '⚡' },
+  AUTO:          { label: 'Auto',         icon: Car },
+  MOTO:          { label: 'Moto',         icon: Bike },
+  DISCAPACITADO: { label: 'Discapacidad', icon: Accessibility },
+  ELECTRICO:     { label: 'Eléctrico',    icon: Zap },
 }
 
 
@@ -43,9 +47,9 @@ function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
   }
 
   const colorPorEstado = {
-    DISPONIBLE:    '#3de8c8',
-    RESERVADO:     '#a259ff',
-    OCUPADO:       '#ffaa00',
+    DISPONIBLE:    '#7ba5ff',
+    RESERVADO:     '#8d6bff',
+    OCUPADO:       '#ff6b88',
     BLOQUEADO:     '#ff4d6d',
     MANTENIMIENTO: '#ff4d6d',
   }
@@ -58,7 +62,7 @@ function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
       {/* Indicador de carga de disponibilidad */}
       {idsDisponibles === null && (
         <div style={{
-          padding: '8px 14px', background: '#5b7eff10',
+          padding: '8px 14px', background: '#ff6b8810',
           borderBottom: `1px solid ${C.border}`,
           display: 'flex', alignItems: 'center', gap: 7,
         }}>
@@ -115,7 +119,7 @@ function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
           const cx = x + w / 2
           const cy = y + h / 2
           const ev = estadoVisual(e)
-          const color = colorPorEstado[ev] || '#3de8c8'
+          const color = colorPorEstado[ev] || '#7ba5ff'
           const disponible = ev === 'DISPONIBLE'
           const fs = Math.min(w, h) < 40 ? 7 : 9
 
@@ -179,9 +183,9 @@ function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
         flexWrap: 'wrap',
       }}>
         {[
-          { label: 'Disponible',            color: '#3de8c8' },
-          { label: 'Reservado en este horario', color: '#a259ff' },
-          { label: 'Ocupado',               color: '#ffaa00' },
+          { label: 'Disponible',            color: '#7ba5ff' },
+          { label: 'Reservado en este horario', color: '#8d6bff' },
+          { label: 'Ocupado',               color: '#ff6b88' },
           { label: 'Bloqueado',             color: '#ff4d6d' },
         ].map(({ label, color }) => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -198,25 +202,25 @@ function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
 function Pasos({ actual }) {
   const pasos = ['Sede & Zona', 'Fecha & Horario', 'Espacio', 'Confirmar']
   return (
-    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 32 }}>
+    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 34 }}>
       {pasos.map((p, i) => {
         const done = i < actual; const active = i === actual
         return (
           <div key={p} style={{ display: 'flex', alignItems: 'center', flex: i < pasos.length - 1 ? 1 : 'none' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
               <div style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: done ? C.teal : active ? GRAD : C.s2,
-                border: `2px solid ${done ? C.teal : active ? 'transparent' : C.border}`,
+                width: 38, height: 38, borderRadius: '50%',
+                background: done ? C.teal : active ? ACTIVE_BG : C.s2,
+                border: `2px solid ${done ? C.teal : active ? ACTIVE_BORDER : C.border}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 700, color: (done || active) ? '#fff' : C.muted, fontFamily: FF,
+                fontSize: 13, fontWeight: 700, color: (done || active) ? ACTIVE_TEXT : C.muted, fontFamily: FF, boxShadow: active ? ACTIVE_SHADOW : 'none',
               }}>
                 {done ? <CheckCircle size={14} /> : i + 1}
               </div>
-              <span style={{ fontSize: 10, fontWeight: 600, color: active ? C.text : C.muted, fontFamily: FF, whiteSpace: 'nowrap' }}>{p}</span>
+              <span style={{ fontSize: 10.5, fontWeight: 650, color: active ? ACTIVE_TEXT : C.muted, fontFamily: FF, whiteSpace: 'nowrap' }}>{p}</span>
             </div>
             {i < pasos.length - 1 && (
-              <div style={{ flex: 1, height: 2, background: done ? C.teal : C.border, margin: '0 6px', marginBottom: 18 }} />
+              <div style={{ flex: 1, height: 2, background: done ? C.teal : C.border, margin: '0 8px', marginBottom: 20 }} />
             )}
           </div>
         )
@@ -234,11 +238,11 @@ function PantallaExito({ reserva, onNuevaReserva, onMisReservas }) {
       {/* Ícono éxito */}
       <div style={{
         width: 80, height: 80, borderRadius: '50%',
-        background: 'rgba(61,232,200,0.12)', border: '2px solid #3de8c8',
+        background: 'rgba(123,165,255,0.12)', border: '2px solid #7ba5ff',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         margin: '0 auto 20px',
       }}>
-        <CheckCircle size={40} color="#3de8c8" />
+        <CheckCircle size={40} color="#7ba5ff" />
       </div>
 
       <h2 style={{ fontSize: 26, fontWeight: 800, color: C.text, marginBottom: 6 }}>
@@ -260,19 +264,19 @@ function PantallaExito({ reserva, onNuevaReserva, onMisReservas }) {
         ].map(([k, v]) => (
           <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: `1px solid ${C.border}` }}>
             <span style={{ fontSize: 12, color: C.muted }}>{k}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: k === 'Estado' ? '#f59e0b' : C.text }}>{v}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: k === 'Estado' ? '#ff6b88' : C.text }}>{v}</span>
           </div>
         ))}
       </Card>
 
       {/* Cómo activar */}
       <div style={{
-        background: 'rgba(61,232,200,0.06)', border: '1px solid rgba(61,232,200,0.2)',
+        background: 'rgba(123,165,255,0.06)', border: '1px solid rgba(123,165,255,0.2)',
         borderRadius: 14, padding: '16px 18px', marginBottom: 20, textAlign: 'left',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <ScanLine size={16} color="#3de8c8" />
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#3de8c8' }}>¿Cómo activar tu reserva?</span>
+          <ScanLine size={16} color="#7ba5ff" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#7ba5ff' }}>¿Cómo activar tu reserva?</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
@@ -283,9 +287,9 @@ function PantallaExito({ reserva, onNuevaReserva, onMisReservas }) {
             <div key={p.n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <div style={{
                 minWidth: 22, height: 22, borderRadius: '50%',
-                background: 'rgba(61,232,200,0.15)', border: '1.5px solid #3de8c8',
+                background: 'rgba(123,165,255,0.15)', border: '1.5px solid #7ba5ff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 700, color: '#3de8c8', flexShrink: 0,
+                fontSize: 11, fontWeight: 700, color: '#7ba5ff', flexShrink: 0,
               }}>{p.n}</div>
               <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>{p.text}</div>
             </div>
@@ -459,16 +463,15 @@ export default function Reservar() {
   }
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '36px 28px 56px' }}>
-      <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8, fontFamily: FF }}>
-        <GradText>Reservar espacio</GradText>
-      </h1>
-      <p style={{ color: C.muted, fontFamily: FF, marginBottom: 32, fontSize: 14 }}>
+    <div style={{ maxWidth: 1120, margin: '0 auto', padding: '24px 16px 56px' }}>
+      <div style={{ borderRadius: 28, border: `1px solid ${C.border}`, background: 'linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.02) 45%, rgba(255,255,255,.01)), #07090d', padding: '28px 22px 30px', boxShadow: '0 22px 52px rgba(0,0,0,.36)' }}>
+      <h1 style={{ fontSize: MAIN_TITLE_SIZE, fontWeight: 830, marginBottom: 8, fontFamily: FF, letterSpacing: '-.03em', color: C.text }}>Reservar espacio</h1>
+      <p style={{ color: C.muted, fontFamily: FF, marginBottom: 30, fontSize: 15 }}>
         Selecciona tu sede, zona y horario
       </p>
       <Pasos actual={paso} />
 
-      <div style={{ display:'grid', gridTemplateColumns: paso >= 2 ? '1fr 280px' : '1fr', gap: 28, alignItems:'start' }}>
+      <div style={{ display:'grid', gridTemplateColumns: paso >= 2 ? '1fr 300px' : '1fr', gap: 26, alignItems:'start' }}>
         <div>
 
           {/* PASO 0 — Sede & Zona */}
@@ -479,10 +482,10 @@ export default function Reservar() {
                 ? <p style={{ color:C.muted, fontFamily:FF, fontSize:13 }}>Cargando...</p>
                 : <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:12, marginBottom:28 }}>
                     {sedes.map(s => (
-                      <button key={s.id} onClick={() => setSedeId(s.id)} style={{ background:sedeId===s.id?GRAD:C.surface, border:`1.5px solid ${sedeId===s.id?'transparent':C.border}`, borderRadius:14, padding:'18px 20px', cursor:'pointer', textAlign:'left' }}>
-                        <MapPin size={18} color={sedeId===s.id?'#fff':C.accent} style={{ marginBottom:8 }} />
-                        <p style={{ fontSize:15, fontWeight:700, color:sedeId===s.id?'#fff':C.text, fontFamily:FF }}>{s.nombre}</p>
-                        <p style={{ fontSize:12, color:sedeId===s.id?'rgba(255,255,255,.7)':C.muted, fontFamily:FF, marginTop:4 }}>{s.direccion}</p>
+                      <button key={s.id} onClick={() => setSedeId(s.id)} style={{ background:sedeId===s.id?ACTIVE_BG:C.surface, border:`1.5px solid ${sedeId===s.id?ACTIVE_BORDER:C.border}`, borderRadius:14, padding:'18px 20px', cursor:'pointer', textAlign:'left', boxShadow:sedeId===s.id?ACTIVE_SHADOW:'none', transition:'all .15s' }}>
+                        <MapPin size={18} color={sedeId===s.id?ACTIVE_TEXT:C.accent} style={{ marginBottom:8 }} />
+                        <p style={{ fontSize:15, fontWeight:700, color:sedeId===s.id?ACTIVE_TEXT:C.text, fontFamily:FF }}>{s.nombre}</p>
+                        <p style={{ fontSize:12, color:sedeId===s.id?ACTIVE_MUTED:C.muted, fontFamily:FF, marginTop:4 }}>{s.direccion}</p>
                       </button>
                     ))}
                   </div>
@@ -493,10 +496,10 @@ export default function Reservar() {
                   ? <p style={{ color:C.muted, fontFamily:FF, fontSize:13 }}>Cargando zonas...</p>
                   : <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:12, marginBottom:28 }}>
                       {zonas.map(z => (
-                        <button key={z.id} onClick={() => setZonaId(z.id)} style={{ background:zonaId===z.id?GRAD:C.surface, border:`1.5px solid ${zonaId===z.id?'transparent':C.border}`, borderRadius:14, padding:'18px 20px', cursor:'pointer', textAlign:'left' }}>
-                          <ParkingSquare size={18} color={zonaId===z.id?'#fff':C.teal} style={{ marginBottom:8 }} />
-                          <p style={{ fontSize:15, fontWeight:700, color:zonaId===z.id?'#fff':C.text, fontFamily:FF }}>{z.nombre}</p>
-                          {z.descripcion && <p style={{ fontSize:12, color:zonaId===z.id?'rgba(255,255,255,.7)':C.muted, fontFamily:FF, marginTop:4 }}>{z.descripcion}</p>}
+                        <button key={z.id} onClick={() => setZonaId(z.id)} style={{ background:zonaId===z.id?ACTIVE_BG:C.surface, border:`1.5px solid ${zonaId===z.id?ACTIVE_BORDER:C.border}`, borderRadius:14, padding:'18px 20px', cursor:'pointer', textAlign:'left', boxShadow:zonaId===z.id?ACTIVE_SHADOW:'none', transition:'all .15s' }}>
+                          <ParkingSquare size={18} color={zonaId===z.id?ACTIVE_TEXT:C.teal} style={{ marginBottom:8 }} />
+                          <p style={{ fontSize:15, fontWeight:700, color:zonaId===z.id?ACTIVE_TEXT:C.text, fontFamily:FF }}>{z.nombre}</p>
+                          {z.descripcion && <p style={{ fontSize:12, color:zonaId===z.id?ACTIVE_MUTED:C.muted, fontFamily:FF, marginTop:4 }}>{z.descripcion}</p>}
                         </button>
                       ))}
                     </div>
@@ -511,9 +514,10 @@ export default function Reservar() {
             <div>
               <SectionLabel>Tipo de vehículo</SectionLabel>
               <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:24 }}>
-                {Object.entries(TIPO_VEHICULO_LABEL).map(([val,{label,icon}]) => (
-                  <button key={val} onClick={() => setTipoVehiculo(val)} style={{ padding:'10px 18px', borderRadius:10, background:tipoVehiculo===val?GRAD:C.s2, border:`1.5px solid ${tipoVehiculo===val?'transparent':C.border}`, color:tipoVehiculo===val?'#fff':C.muted, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:FF, display:'flex', alignItems:'center', gap:7 }}>
-                    <span>{icon}</span>{label}
+                {Object.entries(TIPO_VEHICULO_LABEL).map(([val,{label,icon: Icon}]) => (
+                  <button key={val} onClick={() => setTipoVehiculo(val)} style={{ padding:'10px 18px', borderRadius:10, background:tipoVehiculo===val?ACTIVE_BG:C.s2, border:`1.5px solid ${tipoVehiculo===val?ACTIVE_BORDER:C.border}`, color:tipoVehiculo===val?ACTIVE_TEXT:C.muted, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:FF, display:'flex', alignItems:'center', gap:7, boxShadow:tipoVehiculo===val?ACTIVE_SHADOW:'none', transition:'all .15s' }}>
+                    <Icon size={14} />
+                    {label}
                   </button>
                 ))}
               </div>
@@ -528,10 +532,10 @@ export default function Reservar() {
                 {HORARIOS.map(h => {
                   const sel1=franjaInicio===h.codigo; const sel2=franjaFin===h.codigo; const sel=sel1||sel2
                   return (
-                    <button key={h.codigo} onClick={() => handleFranja(h.codigo)} style={{ background:sel?GRAD:C.surface, border:`1.5px solid ${sel?'transparent':C.border}`, borderRadius:12, padding:'14px', cursor:'pointer', textAlign:'left', position:'relative' }}>
-                      {sel && <div style={{ position:'absolute',top:7,right:9,background:'rgba(255,255,255,.2)',borderRadius:100,padding:'1px 7px',fontSize:9,color:'#fff',fontWeight:600,fontFamily:FF }}>{sel1?(franjaFin?'1ro':'Sel'):'2do'}</div>}
-                      <p style={{ fontSize:11,fontWeight:700,color:sel?'rgba(255,255,255,.75)':C.muted,fontFamily:FF,marginBottom:4 }}>Franja {h.codigo}</p>
-                      <p style={{ fontSize:14,fontWeight:700,color:sel?'#fff':C.text,fontFamily:FF }}>{h.inicio} – {h.fin}</p>
+                    <button key={h.codigo} onClick={() => handleFranja(h.codigo)} style={{ background:sel?ACTIVE_BG:C.surface, border:`1.5px solid ${sel?ACTIVE_BORDER:C.border}`, borderRadius:12, padding:'14px', cursor:'pointer', textAlign:'left', position:'relative', boxShadow:sel?ACTIVE_SHADOW:'none', transition:'all .15s' }}>
+                      {sel && <div style={{ position:'absolute',top:7,right:9,background:'rgba(12,15,22,.46)',border:'1px solid rgba(228,237,255,.22)',borderRadius:100,padding:'1px 7px',fontSize:9,color:ACTIVE_TEXT,fontWeight:600,fontFamily:FF }}>{sel1?(franjaFin?'1ro':'Sel'):'2do'}</div>}
+                      <p style={{ fontSize:11,fontWeight:700,color:sel?ACTIVE_MUTED:C.muted,fontFamily:FF,marginBottom:4 }}>Franja {h.codigo}</p>
+                      <p style={{ fontSize:14,fontWeight:700,color:sel?ACTIVE_TEXT:C.text,fontFamily:FF }}>{h.inicio} – {h.fin}</p>
                     </button>
                   )
                 })}
@@ -548,7 +552,7 @@ export default function Reservar() {
             <div>
               <SectionLabel>Selecciona tu espacio</SectionLabel>
               <p style={{ fontSize:13, color:C.muted, fontFamily:FF, marginBottom:14 }}>
-                Clic en verde para elegir espacio (opcional — si no eliges, se asigna automáticamente)
+                Clic en azul para elegir espacio (opcional — si no eliges, se asigna automáticamente)
               </p>
               {espacios.length === 0
                 ? <Card><p style={{ color:C.muted,fontFamily:FF,fontSize:13 }}>Cargando espacios...</p></Card>
@@ -632,6 +636,9 @@ export default function Reservar() {
           </div>
         )}
       </div>
+      </div>
     </div>
   )
 }
+
+

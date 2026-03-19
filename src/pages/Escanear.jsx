@@ -9,7 +9,7 @@ import { CheckCircle, XCircle, Clock, ParkingSquare, LogIn, LogOut, AlertTriangl
 import { C, GRAD } from '../tokens'
 import { auth } from '../utils/auth'
 
-const FF = "'Plus Jakarta Sans', sans-serif"
+const FF = 'var(--ff-apple)'
 const fmtHora = iso => iso ? new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''
 
 export default function Escanear() {
@@ -56,8 +56,8 @@ export default function Escanear() {
   if (estado === 'no-auth') {
     return (
       <Pantalla>
-        <Icono color="#f59e0b" bg="rgba(245,158,11,0.12)">
-          <AlertTriangle size={36} color="#f59e0b" />
+        <Icono color="#ff6b88" bg="rgba(255,107,136,0.12)">
+          <AlertTriangle size={36} color="#ff6b88" />
         </Icono>
         <h2 style={h2}>Debes iniciar sesión</h2>
         <p style={sub}>Para activar tu reserva, primero inicia sesión en la app.</p>
@@ -77,7 +77,7 @@ export default function Escanear() {
       <Pantalla>
         <div style={{
           width: 64, height: 64, borderRadius: '50%',
-          border: `3px solid ${C.border}`, borderTopColor: '#3de8c8',
+          border: `3px solid ${C.border}`, borderTopColor: '#ff4d6d',
           margin: '0 auto 20px',
           animation: 'spin 0.8s linear infinite',
         }} />
@@ -107,7 +107,7 @@ export default function Escanear() {
   const esCheckIn  = resultado?.accion === 'CHECK_IN'
   const esCheckOut = resultado?.accion === 'CHECK_OUT'
 
-  const colorAccion = esCheckIn ? '#3de8c8' : '#a78bfa'
+  const colorAccion = esCheckIn ? '#ff4d6d' : '#a78bfa'
   const bgAccion    = esCheckIn ? 'rgba(61,232,200,0.10)' : 'rgba(167,139,250,0.10)'
 
   return (
@@ -186,13 +186,15 @@ function Pantalla({ children }) {
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#06060f', padding: 24, fontFamily: FF,
+      background: 'linear-gradient(180deg, rgba(6,6,15,.72), rgba(6,6,15,.9))', padding: 24, fontFamily: FF,
     }}>
       <div style={{
         width: '100%', maxWidth: 400, textAlign: 'center',
-        background: '#0d0e1f', border: '1px solid #1e2130',
+        background: 'linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.02) 44%, rgba(255,255,255,.01)), rgba(13,14,31,.84)',
+        border: '1px solid rgba(255,255,255,.14)',
         borderRadius: 24, padding: 36,
         boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+        backdropFilter: 'blur(8px)',
       }}>
         {children}
       </div>
@@ -217,7 +219,8 @@ const h2  = { fontSize: 22, fontWeight: 800, color: '#e8eaf6', marginBottom: 8, 
 const sub = { color: '#6b7099', fontSize: 14, lineHeight: 1.6, marginBottom: 8, fontFamily: FF }
 const btnPrimary = {
   width: '100%', padding: '14px 0', borderRadius: 12,
-  background: 'linear-gradient(135deg, #3de8c8, #5b7eff)',
+  background: 'linear-gradient(135deg, #ff4d6d, #7ba5ff)',
   border: 'none', color: '#fff', fontWeight: 700, fontSize: 15,
   cursor: 'pointer', fontFamily: FF,
 }
+

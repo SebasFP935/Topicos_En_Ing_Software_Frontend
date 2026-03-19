@@ -8,18 +8,18 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Layers, Info } from 'lucide-react'
+import { ArrowLeft, Save, Layers, Info, RectangleHorizontal, Square, ParkingSquare, MousePointer2 } from 'lucide-react'
 import { C, GRAD } from '../tokens'
 import ParkingMap from '../components/ParkingMap'
 
-const FF = "'Plus Jakarta Sans', sans-serif"
+const FF = 'var(--ff-apple)'
 
 // ── Tip rápido ─────────────────────────────────────────────────────────────
-function Tip({ icon, text }) {
+function Tip({ Icon, text }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-      <span style={{ fontSize: 14 }}>{icon}</span>
-      <span style={{ fontSize: 12, color: C.muted, fontFamily: FF, lineHeight: 1.5 }}>{text}</span>
+      <Icon size={16} color={C.muted} />
+      <span style={{ fontSize: 13.5, color: C.muted, fontFamily: FF, lineHeight: 1.6 }}>{text}</span>
     </div>
   )
 }
@@ -79,9 +79,9 @@ export default function EditorMapa() {
         }),
       })
       if (!res.ok) throw new Error()
-      mostrarToast('✅ Mapa guardado correctamente', 'success')
+      mostrarToast('Mapa guardado correctamente', 'success')
     } catch {
-      mostrarToast('❌ Error al guardar. Intenta de nuevo.', 'error')
+      mostrarToast('Error al guardar. Intenta de nuevo.', 'error')
     } finally {
       setSaving(false)
     }
@@ -95,7 +95,7 @@ export default function EditorMapa() {
   // ── UI ─────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: C.bg }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'linear-gradient(180deg, rgba(5,6,8,.74), rgba(5,6,8,.9))' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: 40, height: 40, borderRadius: '50%', border: `3px solid ${C.border}`, borderTopColor: C.accent, animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
           <p style={{ color: C.muted, fontFamily: FF, fontSize: 14 }}>Cargando mapa…</p>
@@ -106,29 +106,30 @@ export default function EditorMapa() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: C.bg }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(circle at 16% 8%, rgba(255,77,109,.14), transparent 32%), radial-gradient(circle at 92% 5%, rgba(123,165,255,.12), transparent 29%), linear-gradient(180deg, rgba(5,6,8,.72), rgba(5,6,8,.9))' }}>
 
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 24px', background: C.surface,
+        padding: '16px 24px', background: 'linear-gradient(180deg, rgba(11,13,17,.94), rgba(11,13,17,.78))',
         borderBottom: `1px solid ${C.border}`, flexShrink: 0,
+        backdropFilter: 'blur(8px)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
             onClick={() => navigate(-1)}
             style={{
-              width: 34, height: 34, borderRadius: 8,
-              background: C.s2, border: `1px solid ${C.border}`,
+              width: 40, height: 40, borderRadius: 12,
+              background: 'rgba(255,255,255,.03)', border: `1px solid ${C.border}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer',
             }}
           >
-            <ArrowLeft size={16} color={C.muted} />
+            <ArrowLeft size={18} color={C.text} />
           </button>
           <div>
-            <p style={{ fontSize: 11, color: C.muted, fontFamily: FF }}>{zona?.sede}</p>
-            <p style={{ fontSize: 17, fontWeight: 800, color: C.text, fontFamily: FF }}>
+            <p style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>{zona?.sede}</p>
+            <p style={{ fontSize: 23, fontWeight: 820, color: C.text, fontFamily: FF, letterSpacing: '-.02em' }}>
               Editor de mapa — {zona?.nombre || `Zona ${zonaId}`}
             </p>
           </div>
@@ -137,11 +138,11 @@ export default function EditorMapa() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            padding: '5px 12px', borderRadius: 8,
-            background: '#5b7eff14', border: '1px solid #5b7eff30',
+            padding: '8px 14px', borderRadius: 12,
+            background: '#7ba5ff1a', border: '1px solid #7ba5ff44',
           }}>
-            <Layers size={13} color={C.accent} />
-            <span style={{ fontSize: 12, color: C.accent, fontFamily: FF, fontWeight: 600 }}>
+            <Layers size={15} color={C.accent} />
+            <span style={{ fontSize: 13.5, color: C.accent, fontFamily: FF, fontWeight: 700 }}>
               {espacios.length} espacios
             </span>
           </div>
@@ -165,31 +166,32 @@ export default function EditorMapa() {
 
         {/* Panel de ayuda */}
         <div style={{
-          width: 220, background: C.surface, borderLeft: `1px solid ${C.border}`,
+          width: 280, background: 'linear-gradient(180deg, rgba(11,13,17,.95), rgba(11,13,17,.82))', borderLeft: `1px solid ${C.border}`,
           padding: 20, flexShrink: 0, overflowY: 'auto',
+          backdropFilter: 'blur(8px)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
-            <Info size={14} color={C.accent} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: FF }}>Cómo usar</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <Info size={16} color={C.accent} />
+            <span style={{ fontSize: 14, fontWeight: 760, color: C.text, fontFamily: FF }}>Cómo usar</span>
           </div>
 
-          <Tip icon="▬" text="Selecciona 'Pared' y arrastra para dibujar los límites del parqueo." />
-          <Tip icon="⬜" text="Usa 'Pasillo' para marcar las vías de circulación." />
-          <Tip icon="🅿" text="Con 'Espacio' arrastra donde va cada plaza. Asigna código y tipo." />
-          <Tip icon="↖" text="'Mover' para reubicar o seleccionar y eliminar cualquier elemento." />
-          <Tip icon="💾" text="Presiona 'Guardar mapa' cuando termines. Los cambios se aplican al instante." />
+          <Tip Icon={RectangleHorizontal} text="Selecciona 'Pared' y arrastra para dibujar los límites del parqueo." />
+          <Tip Icon={Square} text="Usa 'Pasillo' para marcar las vías de circulación." />
+          <Tip Icon={ParkingSquare} text="Con 'Espacio' arrastra donde va cada plaza. Asigna código y tipo." />
+          <Tip Icon={MousePointer2} text="'Mover' para reubicar o seleccionar y eliminar cualquier elemento." />
+          <Tip Icon={Save} text="Presiona 'Guardar mapa' cuando termines. Los cambios se aplican al instante." />
 
           <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 16, paddingTop: 14 }}>
-            <p style={{ fontSize: 11, color: C.muted, fontFamily: FF, fontWeight: 700, marginBottom: 8, letterSpacing: 1 }}>TIPOS DE VEHÍCULO</p>
+            <p style={{ fontSize: 11.5, color: C.muted, fontFamily: FF, fontWeight: 760, marginBottom: 10, letterSpacing: 1.1 }}>TIPOS DE VEHICULO</p>
             {[
-              { tipo: 'AUTO',         color: '#5b7eff' },
-              { tipo: 'MOTO',         color: '#a259ff' },
-              { tipo: 'BICICLETA',    color: '#3de8c8' },
-              { tipo: 'DISCAPACIDAD', color: '#ffaa00' },
+              { tipo: 'AUTO',         color: '#ff4d6d' },
+              { tipo: 'MOTO',         color: '#8d6bff' },
+              { tipo: 'BICICLETA',    color: '#7ba5ff' },
+              { tipo: 'DISCAPACIDAD', color: '#ff6b88' },
             ].map(({ tipo, color }) => (
               <div key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <div style={{ width: 12, height: 12, borderRadius: 3, background: color + '40', border: `1.5px solid ${color}` }} />
-                <span style={{ fontSize: 11, color: C.muted, fontFamily: FF }}>{tipo}</span>
+                <span style={{ fontSize: 12.5, color: C.muted, fontFamily: FF }}>{tipo}</span>
               </div>
             ))}
           </div>
@@ -200,9 +202,9 @@ export default function EditorMapa() {
       {toast && (
         <div style={{
           position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-          background: toast.tipo === 'success' ? '#3de8c820' : '#ff4d6d20',
-          border: `1px solid ${toast.tipo === 'success' ? '#3de8c850' : '#ff4d6d50'}`,
-          color: toast.tipo === 'success' ? '#3de8c8' : '#ff4d6d',
+          background: toast.tipo === 'success' ? '#ff4d6d20' : '#ff4d6d20',
+          border: `1px solid ${toast.tipo === 'success' ? '#ff4d6d50' : '#ff4d6d50'}`,
+          color: toast.tipo === 'success' ? '#ff4d6d' : '#ff4d6d',
           padding: '12px 24px', borderRadius: 10, fontFamily: FF,
           fontSize: 14, fontWeight: 600, zIndex: 300,
           boxShadow: '0 4px 24px #00000040',
@@ -230,3 +232,4 @@ export default function EditorMapa() {
     </div>
   )
 }
+

@@ -12,25 +12,26 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { MousePointer2, RectangleHorizontal, Square, ParkingSquare, Trash2 } from 'lucide-react'
 import { C, GRAD } from '../tokens'
 
 const GRID    = 20          // px snap
-const FF      = "'Plus Jakarta Sans', sans-serif"
+const FF = 'var(--ff-apple)'
 const W_PARED = '#3a3c5c'
 const W_PAS   = '#1a1c35'
 
 const TIPOS_VEHICULO = ['AUTO', 'MOTO', 'BICICLETA', 'DISCAPACIDAD']
 const TV_COLOR = {
-  AUTO:         '#5b7eff',
-  MOTO:         '#a259ff',
-  BICICLETA:    '#3de8c8',
-  DISCAPACIDAD: '#ffaa00',
+  AUTO:         '#3ec9ff',
+  MOTO:         '#ff4f9a',
+  BICICLETA:    '#7dff63',
+  DISCAPACIDAD: '#ffbf47',
 }
 const ESTADO_COLOR = {
-  DISPONIBLE:  '#3de8c8',
+  DISPONIBLE:  '#ff4d6d',
   OCUPADO:     '#ff4d6d',
-  BLOQUEADO:   '#6b7099',
-  MANTENIMIENTO: '#ffaa00',
+  BLOQUEADO:   '#6f7686',
+  MANTENIMIENTO: '#ff6b88',
 }
 
 const snap = v => Math.round(v / GRID) * GRID
@@ -43,12 +44,14 @@ function ToolBtn({ active, onClick, children, title }) {
       title={title}
       onClick={onClick}
       style={{
-        padding: '7px 14px', borderRadius: 8,
-        background: active ? GRAD : C.s2,
-        color: active ? '#fff' : C.muted,
-        fontSize: 12, fontWeight: 700, cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        padding: '10px 16px', borderRadius: 12,
+        background: active ? GRAD : 'rgba(255,255,255,.02)',
+        color: active ? '#fff' : C.text,
+        fontSize: 13, fontWeight: 700, cursor: 'pointer',
         fontFamily: FF, transition: 'all .15s',
         border: `1px solid ${active ? 'transparent' : C.border}`,
+        letterSpacing: '.01em',
       }}
     >{children}</button>
   )
@@ -59,21 +62,22 @@ function Palette({ tool, setTool, onDelete, seleccionado }) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', gap: 6,
-      padding: '12px 10px', background: C.surface,
-      borderRight: `1px solid ${C.border}`, minWidth: 120,
+      padding: '16px 12px', background: 'linear-gradient(180deg, rgba(9,12,17,.94), rgba(9,12,17,.82))',
+      borderRight: `1px solid ${C.border}`, minWidth: 158,
+      backdropFilter: 'blur(8px)',
     }}>
-      <p style={{ fontSize: 10, fontWeight: 700, color: C.muted, fontFamily: FF, marginBottom: 4, letterSpacing: 1 }}>HERRAMIENTA</p>
-      <ToolBtn active={tool === 'select'}   onClick={() => setTool('select')}  title="Seleccionar">↖ Mover</ToolBtn>
-      <ToolBtn active={tool === 'pared'}    onClick={() => setTool('pared')}   title="Dibujar pared">▬ Pared</ToolBtn>
-      <ToolBtn active={tool === 'pasillo'}  onClick={() => setTool('pasillo')} title="Dibujar pasillo">⬜ Pasillo</ToolBtn>
-      <ToolBtn active={tool === 'espacio'}  onClick={() => setTool('espacio')} title="Colocar espacio">🅿 Espacio</ToolBtn>
+      <p style={{ fontSize: 11, fontWeight: 760, color: C.muted, fontFamily: FF, marginBottom: 6, letterSpacing: 1.2 }}>HERRAMIENTA</p>
+      <ToolBtn active={tool === 'select'}   onClick={() => setTool('select')}  title="Seleccionar"><MousePointer2 size={14} />Mover</ToolBtn>
+      <ToolBtn active={tool === 'pared'}    onClick={() => setTool('pared')}   title="Dibujar pared"><RectangleHorizontal size={14} />Pared</ToolBtn>
+      <ToolBtn active={tool === 'pasillo'}  onClick={() => setTool('pasillo')} title="Dibujar pasillo"><Square size={13} />Pasillo</ToolBtn>
+      <ToolBtn active={tool === 'espacio'}  onClick={() => setTool('espacio')} title="Colocar espacio"><ParkingSquare size={14} />Espacio</ToolBtn>
 
       <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 8, paddingTop: 8 }}>
-        <p style={{ fontSize: 10, fontWeight: 700, color: C.muted, fontFamily: FF, marginBottom: 6, letterSpacing: 1 }}>LEYENDA</p>
+        <p style={{ fontSize: 11, fontWeight: 760, color: C.muted, fontFamily: FF, marginBottom: 7, letterSpacing: 1.2 }}>LEYENDA</p>
         {Object.entries(TV_COLOR).map(([tipo, color]) => (
           <div key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
-            <span style={{ fontSize: 10, color: C.muted, fontFamily: FF }}>{tipo}</span>
+            <div style={{ width: 11, height: 11, borderRadius: 3, background: color }} />
+            <span style={{ fontSize: 11.5, color: C.muted, fontFamily: FF }}>{tipo}</span>
           </div>
         ))}
       </div>
@@ -82,12 +86,12 @@ function Palette({ tool, setTool, onDelete, seleccionado }) {
         <button
           onClick={onDelete}
           style={{
-            marginTop: 8, padding: '7px 10px', borderRadius: 8,
+            marginTop: 10, padding: '10px 11px', borderRadius: 11,
             background: '#ff4d6d18', border: '1px solid #ff4d6d40',
-            color: '#ff4d6d', fontSize: 12, fontWeight: 700,
-            cursor: 'pointer', fontFamily: FF,
+            color: '#ff4d6d', fontSize: 13, fontWeight: 700,
+            cursor: 'pointer', fontFamily: FF, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}
-        >🗑 Eliminar</button>
+        ><Trash2 size={14} />Eliminar</button>
       )}
     </div>
   )
@@ -99,57 +103,60 @@ function ModalEspacio({ rect, onConfirm, onCancel }) {
   const [tipo,   setTipo]   = useState('AUTO')
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: '#00000080',
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)',
+      backdropFilter: 'blur(6px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200,
     }}>
       <div style={{
-        background: C.surface, border: `1px solid ${C.border}`,
-        borderRadius: 16, padding: 28, minWidth: 300,
+        background: 'linear-gradient(155deg, rgba(255,255,255,.09), rgba(255,255,255,.02) 44%, rgba(255,255,255,.01)), #07090d',
+        border: `1px solid rgba(255,255,255,.12)`,
+        borderRadius: 24, padding: 30, minWidth: 390,
+        boxShadow: '0 28px 60px rgba(0,0,0,.45)',
       }}>
-        <p style={{ fontSize: 18, fontWeight: 800, color: C.text, fontFamily: FF, marginBottom: 20 }}>
+        <p style={{ fontSize: 27, fontWeight: 820, color: C.text, fontFamily: FF, marginBottom: 20, letterSpacing: '-.02em' }}>
           Nuevo espacio
         </p>
-        <label style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Código</label>
+        <label style={{ fontSize: 11.5, color: C.muted, fontFamily: FF, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>Codigo</label>
         <input
           value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())}
           placeholder="ej. A-01"
           style={{
             display: 'block', width: '100%', marginTop: 4, marginBottom: 14,
-            padding: '9px 12px', borderRadius: 8,
-            background: C.s2, border: `1px solid ${C.border}`,
-            color: C.text, fontSize: 14, fontFamily: FF, boxSizing: 'border-box',
+            padding: '12px 14px', borderRadius: 12,
+            background: 'rgba(255,255,255,.03)', border: `1px solid ${C.border}`,
+            color: C.text, fontSize: 15, fontFamily: FF, boxSizing: 'border-box',
           }}
         />
-        <label style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Tipo de vehículo</label>
+        <label style={{ fontSize: 11.5, color: C.muted, fontFamily: FF, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>Tipo de vehiculo</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6, marginBottom: 20 }}>
           {TIPOS_VEHICULO.map(t => (
             <button
               key={t}
               onClick={() => setTipo(t)}
               style={{
-                padding: '5px 12px', borderRadius: 6,
-                background: tipo === t ? TV_COLOR[t] + '30' : C.bg,
+                padding: '8px 13px', borderRadius: 10,
+                background: tipo === t ? TV_COLOR[t] + '2b' : 'rgba(255,255,255,.02)',
                 border: `1px solid ${tipo === t ? TV_COLOR[t] : C.border}`,
                 color: tipo === t ? TV_COLOR[t] : C.muted,
-                fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF,
+                fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: FF,
               }}
             >{t}</button>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onCancel} style={{
-            flex: 1, padding: '9px', borderRadius: 8,
-            background: C.s2, border: `1px solid ${C.border}`,
-            color: C.muted, fontSize: 13, fontWeight: 600,
+            flex: 1, padding: '11px', borderRadius: 12,
+            background: 'rgba(255,255,255,.02)', border: `1px solid ${C.border}`,
+            color: C.text, fontSize: 14, fontWeight: 600,
             cursor: 'pointer', fontFamily: FF,
           }}>Cancelar</button>
           <button
             disabled={!codigo.trim()}
             onClick={() => onConfirm({ codigo: codigo.trim(), tipoVehiculo: tipo })}
             style={{
-              flex: 2, padding: '9px', borderRadius: 8, border: 'none',
+              flex: 2, padding: '11px', borderRadius: 12, border: 'none',
               background: codigo.trim() ? GRAD : C.border,
-              color: '#fff', fontSize: 13, fontWeight: 700,
+              color: '#fff', fontSize: 14.5, fontWeight: 760,
               cursor: codigo.trim() ? 'pointer' : 'default', fontFamily: FF,
             }}
           >Confirmar</button>
@@ -165,50 +172,53 @@ function ModalReserva({ espacio, franjas, onConfirm, onCancel }) {
   const [fecha,  setFecha]  = useState(new Date().toISOString().split('T')[0])
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: '#00000080',
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)',
+      backdropFilter: 'blur(6px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200,
     }}>
       <div style={{
-        background: C.surface, border: `1px solid ${C.border}`,
-        borderRadius: 16, padding: 28, minWidth: 320,
+        background: 'linear-gradient(155deg, rgba(255,255,255,.09), rgba(255,255,255,.02) 44%, rgba(255,255,255,.01)), #07090d',
+        border: '1px solid rgba(255,255,255,.12)',
+        borderRadius: 24, padding: 30, minWidth: 420,
+        boxShadow: '0 28px 60px rgba(0,0,0,.45)',
       }}>
-        <p style={{ fontSize: 18, fontWeight: 800, color: C.text, fontFamily: FF, marginBottom: 4 }}>
+        <p style={{ fontSize: 26, fontWeight: 820, color: C.text, fontFamily: FF, marginBottom: 5, letterSpacing: '-.02em' }}>
           Reservar espacio
         </p>
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           background: TV_COLOR[espacio.tipoVehiculo] + '18',
           border: `1px solid ${TV_COLOR[espacio.tipoVehiculo]}40`,
-          borderRadius: 8, padding: '5px 12px', marginBottom: 20,
+          borderRadius: 10, padding: '7px 12px', marginBottom: 20,
         }}>
           <div style={{ width: 8, height: 8, borderRadius: 2, background: TV_COLOR[espacio.tipoVehiculo] }} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: TV_COLOR[espacio.tipoVehiculo], fontFamily: FF }}>
+          <span style={{ fontSize: 14, fontWeight: 740, color: TV_COLOR[espacio.tipoVehiculo], fontFamily: FF }}>
             {espacio.codigo} · {espacio.tipoVehiculo}
           </span>
         </div>
 
-        <label style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Fecha</label>
+        <label style={{ fontSize: 11.5, color: C.muted, fontFamily: FF, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>Fecha</label>
         <input
           type="date" value={fecha} onChange={e => setFecha(e.target.value)}
           style={{
             display: 'block', width: '100%', marginTop: 4, marginBottom: 14,
-            padding: '9px 12px', borderRadius: 8,
-            background: C.s2, border: `1px solid ${C.border}`,
-            color: C.text, fontSize: 14, fontFamily: FF, boxSizing: 'border-box',
+            padding: '12px 14px', borderRadius: 12,
+            background: 'rgba(255,255,255,.03)', border: `1px solid ${C.border}`,
+            color: C.text, fontSize: 15, fontFamily: FF, boxSizing: 'border-box',
           }}
         />
-        <label style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>Franja horaria</label>
+        <label style={{ fontSize: 11.5, color: C.muted, fontFamily: FF, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>Franja horaria</label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6, marginBottom: 20 }}>
           {(franjas || []).map(f => (
             <button
               key={f.id}
               onClick={() => setFranja(f.id)}
               style={{
-                padding: '10px 14px', borderRadius: 8,
-                background: franja === f.id ? GRAD : C.s2,
+                padding: '12px 14px', borderRadius: 12,
+                background: franja === f.id ? GRAD : 'rgba(255,255,255,.02)',
                 border: `1px solid ${franja === f.id ? 'transparent' : C.border}`,
                 color: franja === f.id ? '#fff' : C.text,
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                fontSize: 14, fontWeight: 650, cursor: 'pointer',
                 fontFamily: FF, textAlign: 'left',
                 display: 'flex', justifyContent: 'space-between',
               }}
@@ -220,16 +230,16 @@ function ModalReserva({ espacio, franjas, onConfirm, onCancel }) {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onCancel} style={{
-            flex: 1, padding: '9px', borderRadius: 8,
-            background: C.s2, border: `1px solid ${C.border}`,
-            color: C.muted, fontSize: 13, fontWeight: 600,
+            flex: 1, padding: '11px', borderRadius: 12,
+            background: 'rgba(255,255,255,.02)', border: `1px solid ${C.border}`,
+            color: C.text, fontSize: 14, fontWeight: 600,
             cursor: 'pointer', fontFamily: FF,
           }}>Cancelar</button>
           <button
             onClick={() => onConfirm({ espacioId: espacio.id, franjaId: franja, fecha })}
             style={{
-              flex: 2, padding: '9px', borderRadius: 8, border: 'none',
-              background: GRAD, color: '#fff', fontSize: 13, fontWeight: 700,
+              flex: 2, padding: '11px', borderRadius: 12, border: 'none',
+              background: GRAD, color: '#fff', fontSize: 14.5, fontWeight: 760,
               cursor: 'pointer', fontFamily: FF,
             }}
           >Confirmar reserva</button>
@@ -378,7 +388,7 @@ export default function ParkingMap({
 
   // ── Render SVG ─────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flex: 1, minHeight: 0, background: C.bg }}>
+    <div style={{ display: 'flex', flex: 1, minHeight: 0, background: 'rgba(5,6,8,.76)' }}>
 
       {/* Paleta solo en editor */}
       {mode === 'editor' && (
@@ -426,7 +436,7 @@ export default function ParkingMap({
               <rect
                 x={el.x} y={el.y} width={el.w} height={el.h}
                 fill={el.type === 'pared' ? W_PARED : W_PAS}
-                stroke={selId === el.id ? '#5b7eff' : (el.type === 'pared' ? '#4a4c6c' : '#2a2c4c')}
+                stroke={selId === el.id ? '#7ba5ff' : (el.type === 'pared' ? '#4a4c6c' : '#2a2c4c')}
                 strokeWidth={selId === el.id ? 2 : 1}
                 rx={el.type === 'pasillo' ? 4 : 2}
               />
@@ -445,8 +455,8 @@ export default function ParkingMap({
           {drawing && (
             <rect
               x={drawing.x} y={drawing.y} width={drawing.w || 1} height={drawing.h || 1}
-              fill={tool === 'espacio' ? '#5b7eff18' : (tool === 'pared' ? '#3a3c5c80' : '#1a1c3580')}
-              stroke={tool === 'espacio' ? '#5b7eff' : C.muted}
+              fill={tool === 'espacio' ? '#7ba5ff18' : (tool === 'pared' ? '#3a3c5c80' : '#1a1c3580')}
+              stroke={tool === 'espacio' ? '#7ba5ff' : C.muted}
               strokeWidth={1.5} strokeDasharray="4 3" rx={2}
             />
           )}
@@ -518,12 +528,12 @@ export default function ParkingMap({
           <button
             onClick={guardar}
             style={{
-              padding: '10px 24px', borderRadius: 10, border: 'none',
-              background: GRAD, color: '#fff', fontSize: 14,
-              fontWeight: 700, cursor: 'pointer', fontFamily: FF,
-              boxShadow: '0 4px 20px #5b7eff40',
+              padding: '13px 26px', borderRadius: 14, border: 'none',
+              background: GRAD, color: '#fff', fontSize: 15,
+              fontWeight: 760, cursor: 'pointer', fontFamily: FF,
+              boxShadow: '0 10px 30px rgba(0,140,255,.30)',
             }}
-          >💾 Guardar mapa</button>
+          >Guardar mapa</button>
         </div>
       )}
 
@@ -546,3 +556,4 @@ export default function ParkingMap({
     </div>
   )
 }
+

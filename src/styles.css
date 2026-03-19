@@ -1,0 +1,125 @@
+:root {
+  --bg: #050608;
+  --surface: #0b0d11;
+  --surface-2: #15181f;
+  --border: #2a2e37;
+  --text: #eef1f7;
+  --muted: #8d95a6;
+  --accent: #ff4d6d;
+  --accent-2: #7ba5ff;
+  --danger: #ff4d6d;
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --shadow-soft: 0 14px 42px rgba(0, 0, 0, 0.35);
+  --ff-apple: "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--ff-apple);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255, 77, 109, 0.14), transparent 34%),
+    radial-gradient(circle at 84% 5%, rgba(123, 165, 255, 0.1), transparent 30%),
+    radial-gradient(circle at 87% 95%, rgba(255, 107, 136, 0.1), transparent 34%),
+    var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.05;
+  z-index: -1;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 77, 109, 0.8), rgba(123, 165, 255, 0.8));
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.enter-up {
+  animation: enter-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.bento-card {
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 45%, rgba(255, 255, 255, 0.01)),
+    rgba(10, 13, 18, 0.72);
+  backdrop-filter: blur(10px);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.25s ease, border-color 0.25s ease;
+}
+
+.bento-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 77, 109, 0.44);
+}
+
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 900px) {
+  .bento-grid {
+    grid-template-columns: 1fr;
+  }
+  .bento-grid > * {
+    grid-column: 1 / -1 !important;
+  }
+}

@@ -1,369 +1,609 @@
-// src/pages/Login.jsx
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, ParkingSquare, ArrowRight, Car, Check } from 'lucide-react'
+import { ArrowRight, Check, Eye, EyeOff, ParkingSquare, ShieldCheck, TimerReset, Car } from 'lucide-react'
+import { C, FF, GRAD, MAIN_TITLE_SIZE } from '../tokens'
+import { Card } from '../components/ui/Card'
+import { Button } from '../components/ui/Button'
+import { SectionLabel } from '../components/ui/SectionLabel'
 import { auth } from '../utils/auth'
 
 const TIPOS_DOC = ['CI', 'PASAPORTE', 'NIT', 'OTRO']
 
-// ── Colores propios (no depende de tokens globales para ser autónomo) ───────
-const BG       = '#06060f'
-const SURFACE  = '#0d0e1f'
-const BORDER   = '#1e2040'
-const ACCENT   = '#5b7eff'
-const PURPLE   = '#a259ff'
-const TEAL     = '#3de8c8'
-const TEXT     = '#e8eaf8'
-const MUTED    = '#6b7099'
-const DANGER   = '#ff4d6d'
-const GRAD     = 'linear-gradient(135deg, #5b7eff 0%, #a259ff 100%)'
-const GRAD2    = 'linear-gradient(135deg, #a259ff 0%, #5b7eff 100%)'
-
-// ── Estilos globales (font import) ──────────────────────────────────────────
-const GLOBAL_STYLE = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,wght@0,700;0,900;1,700&display=swap');
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body { background: ${BG}; }
-
-  .np-input {
-    width: 100%;
-    padding: 13px 16px;
-    border-radius: 12px;
-    background: rgba(255,255,255,0.04);
-    border: 1.5px solid ${BORDER};
-    color: ${TEXT};
-    font-size: 14px;
-    font-family: 'DM Sans', sans-serif;
-    outline: none;
-    transition: border-color .2s, background .2s, box-shadow .2s;
-  }
-  .np-input::placeholder { color: ${MUTED}; }
-  .np-input:focus {
-    border-color: ${ACCENT};
-    background: rgba(91,126,255,0.06);
-    box-shadow: 0 0 0 3px rgba(91,126,255,0.12);
-  }
-
-  .np-btn-primary {
-    width: 100%;
-    padding: 14px;
-    border-radius: 12px;
-    border: none;
-    background: ${GRAD};
-    color: #fff;
-    font-size: 15px;
-    font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
-    cursor: pointer;
+const LOCAL_CSS = `
+  .auth-root {
+    min-height: 100vh;
+    position: relative;
+    overflow: hidden;
+    padding: 26px 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    transition: opacity .2s, transform .15s, box-shadow .2s;
-    box-shadow: 0 4px 24px rgba(91,126,255,0.3);
-    letter-spacing: 0.01em;
+    color: ${C.text};
+    font-family: ${FF};
   }
-  .np-btn-primary:hover:not(:disabled) {
-    opacity: 0.92;
-    transform: translateY(-1px);
-    box-shadow: 0 8px 32px rgba(91,126,255,0.4);
-  }
-  .np-btn-primary:active:not(:disabled) { transform: translateY(0); }
-  .np-btn-primary:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
 
-  .np-tab {
-    flex: 1;
-    padding: 10px;
-    border-radius: 9px;
-    border: none;
-    background: transparent;
-    color: ${MUTED};
-    font-size: 13.5px;
-    font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
-    cursor: pointer;
-    transition: all .2s;
+  .auth-root::before {
+    content: '';
+    position: absolute;
+    inset: -20% -10%;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 14% 18%, rgba(255,77,109,.18), transparent 34%),
+      radial-gradient(circle at 88% 6%, rgba(123,165,255,.14), transparent 30%),
+      radial-gradient(circle at 70% 84%, rgba(255,107,136,.12), transparent 38%);
+    z-index: 0;
   }
-  .np-tab.active {
+
+  .auth-grid {
+    width: min(1120px, 100%);
+    display: grid;
+    grid-template-columns: minmax(340px, 1fr) minmax(320px, 470px);
+    gap: 16px;
+    position: relative;
+    z-index: 1;
+    align-items: stretch;
+  }
+
+  .auth-aside {
+    border-radius: 30px;
+    border: 1px solid rgba(255,255,255,.14);
+    background:
+      radial-gradient(circle at 14% 20%, rgba(255,77,109,.28), transparent 40%),
+      radial-gradient(circle at 80% 4%, rgba(123,165,255,.25), transparent 30%),
+      linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.02) 45%, rgba(255,255,255,.01)),
+      #06080d;
+    box-shadow: 0 24px 58px rgba(0,0,0,.4);
+    padding: 34px 34px 30px;
+    display: flex;
+    flex-direction: column;
+    min-height: 640px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .auth-aside::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: .05;
+    background-image:
+      linear-gradient(rgba(255,255,255,.7) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.7) 1px, transparent 1px);
+    background-size: 52px 52px;
+    pointer-events: none;
+  }
+
+  .auth-scene {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: .62;
+  }
+
+  .auth-scene svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .auth-slot {
+    animation: auth-slot-float 4.2s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  .auth-slot.alt {
+    animation: auth-slot-float-b 5.1s ease-in-out infinite;
+  }
+
+  @keyframes auth-slot-float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); }
+  }
+
+  @keyframes auth-slot-float-b {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-12px); }
+  }
+
+  .auth-logo-box {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
     background: ${GRAD};
-    color: #fff;
-    box-shadow: 0 2px 12px rgba(91,126,255,0.35);
+    display: grid;
+    place-items: center;
+    box-shadow: 0 12px 30px rgba(255,77,109,.35);
+    flex-shrink: 0;
   }
-  .np-tab:not(.active):hover { color: ${TEXT}; background: rgba(255,255,255,0.05); }
 
-  .np-field-grid { display: grid; gap: 0 14px; }
-
-  @keyframes floatA { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-18px) rotate(3deg)} }
-  @keyframes floatB { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-12px) rotate(-2deg)} }
-  @keyframes floatC { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-  @keyframes pulseDot { 0%,100%{opacity:.4;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
-  @keyframes fadeSlideIn { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
-  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-  @keyframes spinSlow { to{transform:rotate(360deg)} }
-
-  .anim-fade-slide { animation: fadeSlideIn .5s cubic-bezier(.22,1,.36,1) both; }
-  .anim-fade-slide-d1 { animation: fadeSlideIn .5s .08s cubic-bezier(.22,1,.36,1) both; }
-  .anim-fade-slide-d2 { animation: fadeSlideIn .5s .16s cubic-bezier(.22,1,.36,1) both; }
-  .anim-fade-slide-d3 { animation: fadeSlideIn .5s .24s cubic-bezier(.22,1,.36,1) both; }
-
-  .np-form-scroll {
-    max-height: 56vh;
-    overflow-y: auto;
-    padding-right: 4px;
-    scrollbar-width: thin;
-    scrollbar-color: ${BORDER} transparent;
+  .auth-hero {
+    margin-top: 28px;
+    max-width: 420px;
   }
-  .np-form-scroll::-webkit-scrollbar { width: 4px; }
-  .np-form-scroll::-webkit-scrollbar-track { background: transparent; }
-  .np-form-scroll::-webkit-scrollbar-thumb { background: ${BORDER}; border-radius: 4px; }
 
-  .np-mobile-logo {
+  .auth-hero h1 {
+    font-size: ${MAIN_TITLE_SIZE};
+    line-height: .98;
+    margin: 0 0 14px;
+    letter-spacing: -.04em;
+    font-weight: 860;
+  }
+
+  .auth-grad {
+    background: ${GRAD};
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .auth-hero p {
+    margin: 0;
+    color: ${C.muted};
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .auth-bullets {
+    margin-top: 28px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .auth-bullet {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: ${C.muted};
+  }
+
+  .auth-bullet-dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,77,109,.48);
+    background: rgba(255,77,109,.14);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .auth-metrics {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .auth-metric {
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 13px;
+    padding: 10px 10px 11px;
+    background: rgba(0,0,0,.24);
+  }
+
+  .auth-metric p {
+    margin: 0;
+  }
+
+  .auth-metric .v {
+    color: ${C.text};
+    font-size: 21px;
+    font-weight: 780;
+    letter-spacing: -.03em;
+  }
+
+  .auth-metric .k {
+    color: ${C.muted};
+    font-size: 11px;
+    margin-top: 4px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .auth-main {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .auth-mobile-brand {
     display: none;
     align-items: center;
     gap: 10px;
-    margin-bottom: 28px;
+    margin-bottom: 16px;
   }
 
-  @media (max-width: 860px) {
-    .np-left-panel { display: none !important; }
-    .np-mobile-logo { display: flex !important; }
+  .auth-tabs {
+    margin-top: 20px;
+    display: flex;
+    gap: 5px;
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid ${C.border};
+    background: rgba(255,255,255,.03);
+  }
+
+  .auth-tab {
+    flex: 1;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: ${C.muted};
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .18s ease;
+    letter-spacing: .01em;
+  }
+
+  .auth-tab.active {
+    background: ${GRAD};
+    color: #fff6f8;
+    box-shadow: 0 9px 24px rgba(255,77,109,.25);
+  }
+
+  .auth-tab:not(.active):hover {
+    color: ${C.text};
+    background: rgba(255,255,255,.04);
+  }
+
+  .auth-field {
+    margin-bottom: 14px;
+  }
+
+  .auth-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 12px;
+  }
+
+  .auth-label {
+    display: block;
+    margin-bottom: 6px;
+    color: ${C.muted};
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    font-weight: 650;
+  }
+
+  .auth-input,
+  .auth-select {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid ${C.border};
+    background: rgba(255,255,255,.03);
+    color: ${C.text};
+    padding: 11px 13px;
+    font-size: 14px;
+    font-family: ${FF};
+    outline: none;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+
+  .auth-input::placeholder {
+    color: ${C.muted};
+  }
+
+  .auth-input:focus,
+  .auth-select:focus {
+    border-color: rgba(255,107,136,.75);
+    background: rgba(255,255,255,.045);
+    box-shadow: 0 0 0 3px rgba(255,77,109,.15);
+  }
+
+  .auth-select {
+    cursor: pointer;
+    appearance: none;
+  }
+
+  .auth-pass-wrap {
+    position: relative;
+  }
+
+  .auth-eye {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 0;
+    background: transparent;
+    color: ${C.muted};
+    display: grid;
+    place-items: center;
+    padding: 4px;
+    cursor: pointer;
+  }
+
+  .auth-error {
+    margin-top: 14px;
+    border: 1px solid rgba(255,77,109,.45);
+    border-radius: 11px;
+    padding: 10px 12px;
+    color: ${C.danger};
+    background: rgba(255,77,109,.12);
+    font-size: 13px;
+  }
+
+  .auth-form-scroll {
+    max-height: 300px;
+    overflow: auto;
+    padding-right: 4px;
+  }
+
+  .auth-footer-link {
+    margin-top: 16px;
+    text-align: center;
+    color: ${C.muted};
+    font-size: 13px;
+  }
+
+  .auth-footer-link button {
+    border: 0;
+    background: transparent;
+    color: ${C.accent};
+    cursor: pointer;
+    font-weight: 700;
+    padding: 0;
+    font-size: inherit;
+    margin-left: 4px;
+  }
+
+  .auth-spin {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.35);
+    border-top-color: #fff;
+    animation: auth-spin .7s linear infinite;
+  }
+
+  @keyframes auth-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (max-width: 980px) {
+    .auth-grid {
+      grid-template-columns: 1fr;
+      max-width: 470px;
+    }
+    .auth-aside {
+      display: none;
+    }
+    .auth-mobile-brand {
+      display: flex;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .auth-field-grid {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    .auth-root {
+      padding: 18px 12px;
+    }
   }
 `
 
-// ── Componente Input ────────────────────────────────────────────────────────
-function Field({ label, required, children, half }) {
+function FieldLabel({ text, required }) {
   return (
-    <div style={{ marginBottom: 16, gridColumn: half ? undefined : '1 / -1' }}>
-      <label style={{
-        display: 'block', marginBottom: 6,
-        fontSize: 12, fontWeight: 600, color: MUTED,
-        fontFamily: "'DM Sans', sans-serif", letterSpacing: '.04em', textTransform: 'uppercase',
-      }}>
-        {label}
-        {required && <span style={{ color: DANGER, marginLeft: 3 }}>*</span>}
-      </label>
-      {children}
-    </div>
+    <label className="auth-label">
+      {text}
+      {required ? <span style={{ color: C.danger }}> *</span> : null}
+    </label>
   )
 }
 
-function Input({ label, type = 'text', value, onChange, placeholder, required, half }) {
-  const [show, setShow] = useState(false)
-  const isPass = type === 'password'
+function InputField({ label, type = 'text', value, onChange, placeholder, required }) {
+  const [showPassword, setShowPassword] = useState(false)
+  const isPassword = type === 'password'
   return (
-    <Field label={label} required={required} half={half}>
-      <div style={{ position: 'relative' }}>
+    <div className="auth-field">
+      <FieldLabel text={label} required={required} />
+      <div className={isPassword ? 'auth-pass-wrap' : ''}>
         <input
-          className="np-input"
-          type={isPass && show ? 'text' : type}
+          className="auth-input"
+          type={isPassword && showPassword ? 'text' : type}
           value={value}
-          onChange={e => onChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          style={{ paddingRight: isPass ? 44 : 16 }}
+          required={required}
+          style={isPassword ? { paddingRight: 38 } : undefined}
         />
-        {isPass && (
+        {isPassword ? (
           <button
             type="button"
-            onClick={() => setShow(s => !s)}
-            style={{
-              position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-              background: 'none', border: 'none', cursor: 'pointer', padding: 4,
-              color: MUTED, display: 'flex', alignItems: 'center',
-            }}
+            className="auth-eye"
+            onClick={() => setShowPassword((prev) => !prev)}
+            aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
           >
-            {show ? <EyeOff size={16} /> : <Eye size={16} />}
+            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
-        )}
-      </div>
-    </Field>
-  )
-}
-
-function SelectField({ label, value, onChange, options, half }) {
-  return (
-    <Field label={label} half={half}>
-      <select
-        className="np-input"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        style={{ appearance: 'none', cursor: 'pointer' }}
-      >
-        <option value="">Seleccionar...</option>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-    </Field>
-  )
-}
-
-// ── Panel izquierdo decorativo ──────────────────────────────────────────────
-function LeftPanel() {
-  return (
-    <div style={{
-      flex: 1, background: 'linear-gradient(155deg, #0a0c24 0%, #0e1035 40%, #140c2e 100%)',
-      position: 'relative', overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-      padding: '48px 44px', minHeight: '100vh',
-    }}>
-      {/* Ruido de fondo */}
-      <div style={{
-        position: 'absolute', inset: 0, opacity: 0.035,
-        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-        backgroundSize: '180px',
-      }}/>
-
-      {/* Círculos de fondo */}
-      <div style={{
-        position: 'absolute', top: '-80px', right: '-80px',
-        width: 320, height: 320, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(91,126,255,0.18) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }}/>
-      <div style={{
-        position: 'absolute', bottom: '-60px', left: '-60px',
-        width: 260, height: 260, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(162,89,255,0.15) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }}/>
-
-      {/* Ilustración isométrica de espacios de parqueo */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        <svg viewBox="0 0 420 520" style={{ width: '100%', height: '100%', opacity: 0.22 }}>
-          {/* Grid de plazas isométricas */}
-          {[0,1,2,3].map(row =>
-            [0,1,2].map(col => {
-              const x = 60 + col * 110 + row * 18
-              const y = 140 + row * 85 - col * 12
-              const colors = ['#5b7eff','#a259ff','#3de8c8','#5b7eff']
-              const c = colors[(row + col) % colors.length]
-              return (
-                <g key={`${row}-${col}`} style={{ animation: `floatA ${3.5 + (row+col)*0.4}s ease-in-out infinite`, animationDelay: `${(row*col*0.3)}s` }}>
-                  <rect x={x} y={y} width={80} height={56} rx={6}
-                    fill={c + '18'} stroke={c} strokeWidth={1.2}/>
-                  <line x1={x+20} y1={y+5} x2={x+60} y2={y+5}
-                    stroke={c} strokeWidth={2} strokeLinecap="round" opacity={0.5}/>
-                  <rect x={x+28} y={y+18} width={24} height={22} rx={4}
-                    fill={c + '30'} stroke={c + '80'} strokeWidth={1}/>
-                </g>
-              )
-            })
-          )}
-          {/* Líneas de carril */}
-          {[0,1,2].map(i => (
-            <line key={i} x1={50} y1={100 + i*120} x2={380} y2={80 + i*120}
-              stroke="#5b7eff" strokeWidth={0.8} strokeDasharray="12 8" opacity={0.25}/>
-          ))}
-        </svg>
-      </div>
-
-      {/* Logo */}
-      <div style={{ position: 'relative', zIndex: 1, animation: 'fadeSlideIn .6s both' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 0 }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: 12,
-            background: GRAD,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 20px rgba(91,126,255,0.45)',
-          }}>
-            <ParkingSquare size={22} color="#fff" strokeWidth={2.5} />
-          </div>
-          <span style={{
-            fontSize: 20, fontWeight: 700,
-            fontFamily: "'DM Sans', sans-serif",
-            color: TEXT, letterSpacing: '-.01em',
-          }}>NoParking</span>
-        </div>
-      </div>
-
-      {/* Copy principal */}
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <p style={{
-          fontFamily: "'Fraunces', serif",
-          fontSize: 42, fontWeight: 900, lineHeight: 1.1,
-          color: TEXT, marginBottom: 18, letterSpacing: '-.02em',
-        }}>
-          Tu espacio,<br />
-          <span style={{
-            background: GRAD,
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          }}>siempre listo.</span>
-        </p>
-        <p style={{
-          fontFamily: "'DM Sans', sans-serif",
-          fontSize: 15, color: MUTED, lineHeight: 1.65, maxWidth: 300,
-        }}>
-          Reserva tu lugar en el parqueo de la UPB en segundos. Sin filas, sin estrés.
-        </p>
-
-        {/* Feature pills */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 28 }}>
-          {[
-            'Reserva en menos de 1 minuto',
-            'Scanea el Qr cuando llegues',
-          ].map((f, i) => (
-            <div key={f} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              animation: `fadeSlideIn .5s ${0.2 + i * 0.1}s both`,
-            }}>
-              <div style={{
-                width: 22, height: 22, borderRadius: '50%',
-                background: 'rgba(61,232,200,0.15)',
-                border: '1.5px solid rgba(61,232,200,0.4)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
-              }}>
-                <Check size={12} color={TEAL} strokeWidth={2.5} />
-              </div>
-              <span style={{ fontSize: 13, color: MUTED, fontFamily: "'DM Sans', sans-serif" }}>{f}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <p style={{ fontSize: 12, color: MUTED + '80', fontFamily: "'DM Sans', sans-serif" }}>
-          © {new Date().getFullYear()} NoParking · UPB
-        </p>
+        ) : null}
       </div>
     </div>
   )
 }
 
-// ── Componente principal ────────────────────────────────────────────────────
+function SelectField({ label, value, onChange, options }) {
+  return (
+    <div className="auth-field">
+      <FieldLabel text={label} />
+      <select className="auth-select" value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Seleccionar...</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+function AsideMotion() {
+  const slots = [
+    { x: 42, y: 170, color: '#ff6b88', alt: false },
+    { x: 136, y: 156, color: '#7ba5ff', alt: true },
+    { x: 230, y: 142, color: '#ff4d6d', alt: false },
+    { x: 324, y: 128, color: '#8d6bff', alt: true },
+    { x: 66, y: 262, color: '#7ba5ff', alt: true },
+    { x: 160, y: 248, color: '#ff6b88', alt: false },
+    { x: 254, y: 234, color: '#8d6bff', alt: true },
+    { x: 348, y: 220, color: '#ff4d6d', alt: false },
+  ]
+
+  return (
+    <div className="auth-scene" aria-hidden="true">
+      <svg viewBox="0 0 420 640">
+        <defs>
+          <linearGradient id="laneGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#7ba5ff" stopOpacity="0" />
+            <stop offset="45%" stopColor="#7ba5ff" stopOpacity=".35" />
+            <stop offset="100%" stopColor="#ff6b88" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {[0, 1, 2].map((lane) => (
+          <line
+            key={lane}
+            x1={20}
+            y1={178 + lane * 96}
+            x2={404}
+            y2={126 + lane * 96}
+            stroke="url(#laneGrad)"
+            strokeDasharray="10 10"
+            strokeWidth="1.4"
+          />
+        ))}
+
+        {slots.map((slot, index) => (
+          <g
+            key={`${slot.x}-${slot.y}`}
+            className={`auth-slot ${slot.alt ? 'alt' : ''}`}
+            style={{ animationDelay: `${index * 0.22}s` }}
+          >
+            <rect
+              x={slot.x}
+              y={slot.y}
+              width="66"
+              height="42"
+              rx="8"
+              fill={`${slot.color}20`}
+              stroke={slot.color}
+              strokeWidth="1.2"
+            />
+            <line
+              x1={slot.x + 14}
+              y1={slot.y + 8}
+              x2={slot.x + 52}
+              y2={slot.y + 8}
+              stroke={slot.color}
+              strokeWidth="1.8"
+              opacity=".5"
+              strokeLinecap="round"
+            />
+            <rect
+              x={slot.x + 22}
+              y={slot.y + 14}
+              width="22"
+              height="17"
+              rx="5"
+              fill={`${slot.color}30`}
+              stroke={`${slot.color}88`}
+              strokeWidth="1"
+            />
+          </g>
+        ))}
+
+        <g>
+          <g opacity=".95">
+            <rect x="-16" y="-8" width="32" height="16" rx="5" fill="#ff4d6d" />
+            <rect x="-10" y="-5" width="20" height="7" rx="3" fill="#ffd6df" fillOpacity=".6" />
+            <circle cx="-9" cy="9" r="3" fill="#1a1f2b" />
+            <circle cx="9" cy="9" r="3" fill="#1a1f2b" />
+            <animateMotion dur="8.2s" repeatCount="indefinite" rotate="auto">
+              <mpath href="#pathA" />
+            </animateMotion>
+          </g>
+
+          <g opacity=".9">
+            <rect x="-14" y="-8" width="28" height="16" rx="5" fill="#7ba5ff" />
+            <rect x="-9" y="-5" width="18" height="7" rx="3" fill="#d7e5ff" fillOpacity=".6" />
+            <circle cx="-8" cy="9" r="3" fill="#1a1f2b" />
+            <circle cx="8" cy="9" r="3" fill="#1a1f2b" />
+            <animateMotion dur="10.1s" begin="-2.8s" repeatCount="indefinite" rotate="auto">
+              <mpath href="#pathB" />
+            </animateMotion>
+          </g>
+
+          <g opacity=".95">
+            <rect x="-15" y="-8" width="30" height="16" rx="5" fill="#8d6bff" />
+            <rect x="-10" y="-5" width="20" height="7" rx="3" fill="#e8dcff" fillOpacity=".55" />
+            <circle cx="-8.8" cy="9" r="3" fill="#1a1f2b" />
+            <circle cx="8.8" cy="9" r="3" fill="#1a1f2b" />
+            <animateMotion dur="9.1s" begin="-5.3s" repeatCount="indefinite" rotate="auto">
+              <mpath href="#pathC" />
+            </animateMotion>
+          </g>
+        </g>
+
+        <path id="pathA" d="M 26 486 C 132 432, 250 392, 394 350" fill="none" />
+        <path id="pathB" d="M 394 438 C 296 386, 172 346, 28 304" fill="none" />
+        <path id="pathC" d="M 36 560 C 164 514, 270 474, 396 430" fill="none" />
+      </svg>
+    </div>
+  )
+}
+
 export default function Login() {
   const navigate = useNavigate()
-  const [tab,     setTab]     = useState('login')
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
 
-  // Login
-  const [email,    setEmail]    = useState('')
+  const [tab, setTab] = useState('login')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
-  // Register
   const [reg, setReg] = useState({
-    nombre: '', apellido: '', email: '', password: '',
-    tipoDocumento: '', numeroDocumento: '',
-    telefono: '', vehiculoPlaca: '', vehiculoModelo: '',
+    nombre: '',
+    apellido: '',
+    email: '',
+    password: '',
+    tipoDocumento: '',
+    numeroDocumento: '',
+    telefono: '',
+    vehiculoPlaca: '',
+    vehiculoModelo: '',
   })
-  const setR = (k, v) => setReg(p => ({ ...p, [k]: v }))
 
-  const switchTab = (t) => { setTab(t); setError('') }
+  const setRegField = (key, value) => setReg((prev) => ({ ...prev, [key]: value }))
+  const switchTab = (nextTab) => {
+    setTab(nextTab)
+    setError('')
+  }
 
-  // ── Login ──────────────────────────────────────────────────────────────
-  const handleLogin = async e => {
+  const handleLogin = async (e) => {
     e.preventDefault()
-    setError(''); setLoading(true)
+    setError('')
+    setLoading(true)
     try {
-      const res  = await fetch('/api/auth/login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       })
-      const data = await res.json()
-      if (!res.ok) { setError(data.mensaje || 'Credenciales incorrectas.'); return }
+      const data = await response.json()
+      if (!response.ok) {
+        setError(data.mensaje || 'Credenciales incorrectas.')
+        return
+      }
       auth.save(data)
       navigate('/')
     } catch {
@@ -373,33 +613,35 @@ export default function Login() {
     }
   }
 
-  // ── Register ───────────────────────────────────────────────────────────
-  const handleRegister = async e => {
+  const handleRegister = async (e) => {
     e.preventDefault()
     setError('')
     if (!reg.nombre || !reg.apellido || !reg.email || !reg.password) {
-      setError('Nombre, apellido, email y contraseña son obligatorios.')
+      setError('Nombre, apellido, email y contrasena son obligatorios.')
       return
     }
     setLoading(true)
     try {
-      const res  = await fetch('/api/auth/register', {
+      const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nombre:          reg.nombre,
-          apellido:        reg.apellido,
-          email:           reg.email,
-          password:        reg.password,
-          tipoDocumento:   reg.tipoDocumento  || null,
+          nombre: reg.nombre,
+          apellido: reg.apellido,
+          email: reg.email,
+          password: reg.password,
+          tipoDocumento: reg.tipoDocumento || null,
           numeroDocumento: reg.numeroDocumento || null,
-          telefono:        reg.telefono        || null,
-          vehiculoPlaca:   reg.vehiculoPlaca   || null,
-          vehiculoModelo:  reg.vehiculoModelo  || null,
+          telefono: reg.telefono || null,
+          vehiculoPlaca: reg.vehiculoPlaca || null,
+          vehiculoModelo: reg.vehiculoModelo || null,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) { setError(data.mensaje || 'Error al registrarse.'); return }
+      const data = await response.json()
+      if (!response.ok) {
+        setError(data.mensaje || 'Error al registrarse.')
+        return
+      }
       auth.save(data)
       navigate('/')
     } catch {
@@ -411,225 +653,275 @@ export default function Login() {
 
   return (
     <>
-      <style>{GLOBAL_STYLE}</style>
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        background: BG,
-        fontFamily: "'DM Sans', sans-serif",
-      }}>
-        {/* Panel izquierdo — solo en desktop */}
-        <div style={{ display: 'flex', flex: 1, minHeight: '100vh' }}>
-          {/* LEFT panel */}
-          <div
-            className="np-left-panel"
-            style={{ flex: '0 0 44%', display: 'flex', flexDirection: 'column' }}
-          >
-            <LeftPanel />
-          </div>
-
-          {/* RIGHT — formulario */}
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '40px 24px',
-            background: SURFACE,
-            position: 'relative',
-            overflowY: 'auto',
-            minHeight: '100vh',
-          }}>
-            {/* Glow sutil */}
-            <div style={{
-              position: 'absolute', top: '20%', left: '50%',
-              transform: 'translateX(-50%)',
-              width: 400, height: 300,
-              background: 'radial-gradient(ellipse, rgba(91,126,255,0.07) 0%, transparent 70%)',
-              pointerEvents: 'none',
-            }}/>
-
-            <div style={{
-              width: '100%', maxWidth: 420,
-              position: 'relative', zIndex: 1,
-            }}>
-
-              {/* Header del form */}
-              <div className="anim-fade-slide" style={{ marginBottom: 32 }}>
-                {/* Logo mobile - hidden on desktop via CSS */}
-                <div className="np-mobile-logo">
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <ParkingSquare size={18} color="#fff" strokeWidth={2.5} />
-                  </div>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: TEXT }}>NoParking</span>
+      <style>{LOCAL_CSS}</style>
+      <div className="auth-root">
+        <div className="auth-grid">
+          <aside className="auth-aside">
+            <AsideMotion />
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="auth-logo-box">
+                  <ParkingSquare size={22} color="#fff" />
                 </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 12, color: C.muted, letterSpacing: '.08em', textTransform: 'uppercase' }}>
+                    NoParking
+                  </p>
+                  <p style={{ margin: 0, fontSize: 18, fontWeight: 760 }}>UPB Smart Access</p>
+                </div>
+              </div>
 
-                <h1 style={{
-                  fontFamily: "'Fraunces', serif",
-                  fontSize: 32, fontWeight: 900,
-                  color: TEXT, marginBottom: 8,
-                  letterSpacing: '-.02em', lineHeight: 1.1,
-                }}>
-                  {tab === 'login' ? 'Bienvenido de vuelta' : 'Crear una cuenta'}
+              <div className="auth-hero">
+                <h1>
+                  Reserva rapido,
+                  <br />
+                  <span className="auth-grad">entra sin filas.</span>
                 </h1>
-                <p style={{ fontSize: 14, color: MUTED, lineHeight: 1.5 }}>
-                  {tab === 'login'
-                    ? 'Ingresa tus datos para acceder a tu cuenta'
-                    : 'Completa el formulario para registrarte en el sistema'}
+                <p>
+                  El mismo estilo de tu dashboard ahora en autenticacion: acceso rapido, estado claro y flujo directo.
                 </p>
               </div>
 
-              {/* Tabs */}
-              <div className="anim-fade-slide-d1" style={{
-                display: 'flex', background: 'rgba(255,255,255,0.04)',
-                borderRadius: 12, padding: 4, marginBottom: 28, gap: 4,
-                border: `1px solid ${BORDER}`,
-              }}>
-                <button className={`np-tab ${tab === 'login' ? 'active' : ''}`}
-                  onClick={() => switchTab('login')}>
-                  Iniciar sesión
-                </button>
-                <button className={`np-tab ${tab === 'register' ? 'active' : ''}`}
-                  onClick={() => switchTab('register')}>
-                  Registrarse
-                </button>
+              <div className="auth-bullets">
+                {[
+                  { icon: Check, text: 'Ingreso en menos de 1 minuto' },
+                  { icon: ShieldCheck, text: 'Validacion segura de usuario' },
+                  { icon: TimerReset, text: 'Reserva y activacion por bloque horario' },
+                ].map(({ icon: Icon, text }) => (
+                  <div key={text} className="auth-bullet">
+                    <span className="auth-bullet-dot">
+                      <Icon size={12} color={C.accent} />
+                    </span>
+                    <span>{text}</span>
+                  </div>
+                ))}
               </div>
+            </div>
 
-              {/* Error */}
-              {error && (
-                <div style={{
-                  background: 'rgba(255,77,109,0.08)',
-                  border: `1px solid rgba(255,77,109,0.3)`,
-                  borderRadius: 10, padding: '11px 14px',
-                  color: DANGER, fontSize: 13.5, marginBottom: 20,
-                  display: 'flex', alignItems: 'flex-start', gap: 8,
-                  animation: 'fadeIn .25s both',
-                }}>
-                  <span style={{ flexShrink: 0, marginTop: 1 }}>⚠</span>
-                  {error}
+            <div className="auth-metrics">
+              <div className="auth-metric">
+                <p className="v">24/7</p>
+                <p className="k">Disponibilidad</p>
+              </div>
+              <div className="auth-metric">
+                <p className="v">QR</p>
+                <p className="k">Check-in</p>
+              </div>
+              <div className="auth-metric">
+                <p className="v">1x</p>
+                <p className="k">Cuenta unica</p>
+              </div>
+            </div>
+          </aside>
+
+          <main className="auth-main">
+            <div style={{ width: '100%' }}>
+              <Card
+                style={{
+                  borderRadius: 28,
+                  padding: '22px 22px 20px',
+                  background:
+                    'radial-gradient(circle at 86% 8%, rgba(255,77,109,.18), transparent 34%), linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.02) 46%, rgba(255,255,255,.01)), #06080d',
+                  border: '1px solid rgba(255,255,255,.12)',
+                }}
+              >
+                <div className="auth-mobile-brand">
+                  <div className="auth-logo-box" style={{ width: 38, height: 38, borderRadius: 12 }}>
+                    <ParkingSquare size={18} color="#fff" />
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: C.muted }}>NoParking</p>
+                    <p style={{ margin: 0, fontSize: 16, fontWeight: 740 }}>UPB Smart Access</p>
+                  </div>
                 </div>
-              )}
 
-              {/* ── LOGIN ── */}
-              {tab === 'login' && (
-                <form onSubmit={handleLogin} className="anim-fade-slide-d2">
-                  <Input label="Email" type="email" value={email}
-                    onChange={setEmail} placeholder="tu@upb.edu" required />
-                  <Input label="Contraseña" type="password" value={password}
-                    onChange={setPassword} placeholder="••••••••" required />
+                <SectionLabel style={{ marginBottom: 6, color: '#ffb8c5' }}>
+                  {tab === 'login' ? 'Acceso' : 'Registro'}
+                </SectionLabel>
+                <h1 style={{ margin: 0, fontSize: MAIN_TITLE_SIZE, lineHeight: 1.04, letterSpacing: '-.03em', fontWeight: 820 }}>
+                  {tab === 'login' ? 'Inicia sesion' : 'Crea tu cuenta'}
+                </h1>
+                <p style={{ margin: '8px 0 0', color: C.muted, fontSize: 13.5, lineHeight: 1.55 }}>
+                  {tab === 'login'
+                    ? 'Usa tu cuenta institucional para continuar.'
+                    : 'Completa tus datos y configura tu vehiculo principal.'}
+                </p>
 
-                  <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'flex-end' }}>
-                    <span style={{ fontSize: 12.5, color: ACCENT, cursor: 'default', fontWeight: 500 }}>
-                      ¿Olvidaste tu contraseña?
-                    </span>
-                  </div>
-
-                  <button type="submit" disabled={loading} className="np-btn-primary">
-                    {loading ? (
-                      <>
-                        <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spinSlow .7s linear infinite' }}/>
-                        Ingresando...
-                      </>
-                    ) : (
-                      <>Ingresar <ArrowRight size={16} /></>
-                    )}
+                <div className="auth-tabs">
+                  <button
+                    type="button"
+                    className={`auth-tab ${tab === 'login' ? 'active' : ''}`}
+                    onClick={() => switchTab('login')}
+                  >
+                    Iniciar sesion
                   </button>
+                  <button
+                    type="button"
+                    className={`auth-tab ${tab === 'register' ? 'active' : ''}`}
+                    onClick={() => switchTab('register')}
+                  >
+                    Registrarse
+                  </button>
+                </div>
 
-                  <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: MUTED }}>
-                    ¿No tienes cuenta?{' '}
-                    <span
-                      onClick={() => switchTab('register')}
-                      style={{ color: ACCENT, cursor: 'pointer', fontWeight: 600 }}
+                {error ? <div className="auth-error">{error}</div> : null}
+
+                {tab === 'login' ? (
+                  <form onSubmit={handleLogin} style={{ marginTop: 16 }}>
+                    <InputField
+                      label="Email"
+                      type="email"
+                      value={email}
+                      onChange={setEmail}
+                      placeholder="tu@upb.edu"
+                      required
+                    />
+                    <InputField
+                      label="Contrasena"
+                      type="password"
+                      value={password}
+                      onChange={setPassword}
+                      placeholder="Tu clave"
+                      required
+                    />
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '2px 0 18px' }}>
+                      <span style={{ color: C.muted, fontSize: 12.5, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                        <Car size={14} color={C.accent} />
+                        UPB parking access
+                      </span>
+                      <span style={{ color: C.accent, fontSize: 12.5, fontWeight: 700 }}>Olvidaste tu clave?</span>
+                    </div>
+
+                    <Button
+                      disabled={loading}
+                      style={{ width: '100%', justifyContent: 'center', padding: '12px 18px', borderRadius: 12 }}
                     >
-                      Regístrate gratis
-                    </span>
-                  </p>
-                </form>
-              )}
-
-              {/* ── REGISTER ── */}
-              {tab === 'register' && (
-                <form onSubmit={handleRegister} className="anim-fade-slide-d2">
-                  <div className="np-form-scroll">
-                    {/* Datos personales */}
-                    <p style={{
-                      fontSize: 11, fontWeight: 700, color: MUTED,
-                      letterSpacing: '.08em', textTransform: 'uppercase',
-                      marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8,
-                    }}>
-                      <span style={{ flex: 1, height: 1, background: BORDER, display: 'inline-block' }}/>
-                      Datos personales
-                      <span style={{ flex: 1, height: 1, background: BORDER, display: 'inline-block' }}/>
-                    </p>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
-                      <Input label="Nombre" value={reg.nombre}
-                        onChange={v => setR('nombre', v)} placeholder="Juan" required half />
-                      <Input label="Apellido" value={reg.apellido}
-                        onChange={v => setR('apellido', v)} placeholder="Pérez" required half />
-                    </div>
-
-                    <Input label="Email" type="email" value={reg.email}
-                      onChange={v => setR('email', v)} placeholder="tu@upb.edu" required />
-                    <Input label="Contraseña" type="password" value={reg.password}
-                      onChange={v => setR('password', v)} placeholder="Mínimo 6 caracteres" required />
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
-                      <SelectField label="Tipo doc." value={reg.tipoDocumento}
-                        onChange={v => setR('tipoDocumento', v)} options={TIPOS_DOC} half />
-                      <Input label="N° documento" value={reg.numeroDocumento}
-                        onChange={v => setR('numeroDocumento', v)} placeholder="12345678" half />
-                    </div>
-
-                    <Input label="Teléfono" value={reg.telefono}
-                      onChange={v => setR('telefono', v)} placeholder="+591 7..." />
-
-                    {/* Vehículo */}
-                    <p style={{
-                      fontSize: 11, fontWeight: 700, color: MUTED,
-                      letterSpacing: '.08em', textTransform: 'uppercase',
-                      marginTop: 4, marginBottom: 14,
-                      display: 'flex', alignItems: 'center', gap: 8,
-                    }}>
-                      <span style={{ flex: 1, height: 1, background: BORDER, display: 'inline-block' }}/>
-                      Vehículo (opcional)
-                      <span style={{ flex: 1, height: 1, background: BORDER, display: 'inline-block' }}/>
-                    </p>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px', marginBottom: 0 }}>
-                      <Input label="Placa" value={reg.vehiculoPlaca}
-                        onChange={v => setR('vehiculoPlaca', v.toUpperCase())} placeholder="ABC-123" half />
-                      <Input label="Modelo" value={reg.vehiculoModelo}
-                        onChange={v => setR('vehiculoModelo', v)} placeholder="Toyota Corolla" half />
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: 20 }}>
-                    <button type="submit" disabled={loading} className="np-btn-primary">
                       {loading ? (
                         <>
-                          <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spinSlow .7s linear infinite' }}/>
+                          <span className="auth-spin" />
+                          Ingresando...
+                        </>
+                      ) : (
+                        <>
+                          Entrar
+                          <ArrowRight size={16} />
+                        </>
+                      )}
+                    </Button>
+
+                    <p className="auth-footer-link">
+                      No tienes cuenta?
+                      <button type="button" onClick={() => switchTab('register')}>
+                        Registrate gratis
+                      </button>
+                    </p>
+                  </form>
+                ) : (
+                  <form onSubmit={handleRegister} style={{ marginTop: 16 }}>
+                    <div className="auth-form-scroll">
+                      <SectionLabel style={{ marginBottom: 10 }}>Datos personales</SectionLabel>
+                      <div className="auth-field-grid">
+                        <InputField
+                          label="Nombre"
+                          value={reg.nombre}
+                          onChange={(value) => setRegField('nombre', value)}
+                          placeholder="Juan"
+                          required
+                        />
+                        <InputField
+                          label="Apellido"
+                          value={reg.apellido}
+                          onChange={(value) => setRegField('apellido', value)}
+                          placeholder="Perez"
+                          required
+                        />
+                      </div>
+
+                      <InputField
+                        label="Email"
+                        type="email"
+                        value={reg.email}
+                        onChange={(value) => setRegField('email', value)}
+                        placeholder="tu@upb.edu"
+                        required
+                      />
+                      <InputField
+                        label="Contrasena"
+                        type="password"
+                        value={reg.password}
+                        onChange={(value) => setRegField('password', value)}
+                        placeholder="Minimo 6 caracteres"
+                        required
+                      />
+
+                      <div className="auth-field-grid">
+                        <SelectField
+                          label="Tipo doc."
+                          value={reg.tipoDocumento}
+                          onChange={(value) => setRegField('tipoDocumento', value)}
+                          options={TIPOS_DOC}
+                        />
+                        <InputField
+                          label="Nro documento"
+                          value={reg.numeroDocumento}
+                          onChange={(value) => setRegField('numeroDocumento', value)}
+                          placeholder="12345678"
+                        />
+                      </div>
+
+                      <InputField
+                        label="Telefono"
+                        value={reg.telefono}
+                        onChange={(value) => setRegField('telefono', value)}
+                        placeholder="+591 7..."
+                      />
+
+                      <SectionLabel style={{ marginBottom: 10, marginTop: 4 }}>Vehiculo</SectionLabel>
+                      <div className="auth-field-grid">
+                        <InputField
+                          label="Placa"
+                          value={reg.vehiculoPlaca}
+                          onChange={(value) => setRegField('vehiculoPlaca', value.toUpperCase())}
+                          placeholder="ABC-123"
+                        />
+                        <InputField
+                          label="Modelo"
+                          value={reg.vehiculoModelo}
+                          onChange={(value) => setRegField('vehiculoModelo', value)}
+                          placeholder="Toyota Corolla"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      disabled={loading}
+                      style={{ width: '100%', justifyContent: 'center', padding: '12px 18px', borderRadius: 12, marginTop: 18 }}
+                    >
+                      {loading ? (
+                        <>
+                          <span className="auth-spin" />
                           Creando cuenta...
                         </>
                       ) : (
-                        <>Crear cuenta <ArrowRight size={16} /></>
+                        <>
+                          Crear cuenta
+                          <ArrowRight size={16} />
+                        </>
                       )}
-                    </button>
-                  </div>
+                    </Button>
 
-                  <p style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: MUTED }}>
-                    ¿Ya tienes cuenta?{' '}
-                    <span
-                      onClick={() => switchTab('login')}
-                      style={{ color: ACCENT, cursor: 'pointer', fontWeight: 600 }}
-                    >
-                      Inicia sesión
-                    </span>
-                  </p>
-                </form>
-              )}
+                    <p className="auth-footer-link">
+                      Ya tienes cuenta?
+                      <button type="button" onClick={() => switchTab('login')}>
+                        Inicia sesion
+                      </button>
+                    </p>
+                  </form>
+                )}
+              </Card>
             </div>
-          </div>
+          </main>
         </div>
       </div>
     </>

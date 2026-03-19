@@ -7,34 +7,33 @@ import {
   X, Pencil, ShieldCheck, UserCog, Save, ChevronDown,
   ToggleLeft, ToggleRight, AlertTriangle,
 } from 'lucide-react'
-import { C, GRAD } from '../tokens'
+import { C, GRAD, MAIN_TITLE_SIZE } from '../tokens'
 import { Card } from '../components/ui/Card'
-import { GradText } from '../components/ui/GradText'
 import { SectionLabel } from '../components/ui/SectionLabel'
 import { auth } from '../utils/auth'
 
-const FF = "'Plus Jakarta Sans', sans-serif"
+const FF = 'var(--ff-apple)'
 
-/* ── helpers ─────────────────────────────────────────────────────── */
-const fmtHora  = iso => iso ? new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '—'
-const fmtFecha = iso => iso ? new Date(iso).toLocaleDateString('es-BO', { day: '2-digit', month: 'short' }) : '—'
+/* â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+const fmtHora  = iso => iso ? new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : 'â€”'
+const fmtFecha = iso => iso ? new Date(iso).toLocaleDateString('es-BO', { day: '2-digit', month: 'short' }) : 'â€”'
 const initials = name => name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?'
 
 const ESTADO_META = {
-  ACTIVA:     { label: 'Activa',     color: '#3de8c8', bg: '#3de8c814' },
-  COMPLETADA: { label: 'Completada', color: '#5b7eff', bg: '#5b7eff14' },
+  ACTIVA:     { label: 'Activa',     color: '#ff4d6d', bg: '#ff4d6d14' },
+  COMPLETADA: { label: 'Completada', color: '#7ba5ff', bg: '#7ba5ff14' },
   CANCELADA:  { label: 'Cancelada',  color: '#ff4d6d', bg: '#ff4d6d14' },
-  NO_SHOW:    { label: 'No show',    color: '#ffaa00', bg: '#ffaa0014' },
+  NO_SHOW:    { label: 'No show',    color: '#ff6b88', bg: '#ff6b8814' },
 }
 
 const ROL_META = {
-  USUARIO:  { label: 'Usuario',  color: '#5b7eff', bg: '#5b7eff14' },
-  OPERADOR: { label: 'Operador', color: '#ffaa00', bg: '#ffaa0014' },
+  USUARIO:  { label: 'Usuario',  color: '#7ba5ff', bg: '#7ba5ff14' },
+  OPERADOR: { label: 'Operador', color: '#ff6b88', bg: '#ff6b8814' },
 }
 
 const TIPO_DOC_OPTS = ['CI', 'PASAPORTE', 'CARNET_EXTRANJERO']
 
-/* ── sub-components ───────────────────────────────────────────────── */
+/* â”€â”€ sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function EstadoBadge({ estado }) {
   const m = ESTADO_META[estado] || { label: estado, color: C.muted, bg: '#ffffff10' }
   return (
@@ -70,22 +69,21 @@ function KpiCard({ label, value, sub, color, Icon, loading }) {
       </div>
       {loading
         ? <div style={{ height: 36, background: C.border, borderRadius: 8, animation: 'pulse 1.5s infinite' }} />
-        : <p style={{ fontSize: 34, fontWeight: 800, color: C.text, fontFamily: FF, lineHeight: 1 }}>{value ?? '—'}</p>
+        : <p style={{ fontSize: 34, fontWeight: 800, color: C.text, fontFamily: FF, lineHeight: 1 }}>{value ?? 'â€”'}</p>
       }
       {sub && !loading && <p style={{ fontSize: 12, color: C.muted, marginTop: 6, fontFamily: FF }}>{sub}</p>}
     </Card>
   )
 }
 
-/* ── input helper ─────────────────────────────────────────────────── */
+/* â”€â”€ input helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const inputSt = {
   width: '100%', padding: '9px 12px', borderRadius: 9,
   background: C.s2, border: `1px solid ${C.border}`,
   color: C.text, fontSize: 13, fontFamily: FF,
   boxSizing: 'border-box', outline: 'none',
 }
-
-/* ── Modal de edición de usuario ──────────────────────────────────── */
+/* â”€â”€ Modal de ediciÃ³n de usuario â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function ModalEditarUsuario({ usuario, onClose, onSaved }) {
   const [form, setForm] = useState({
     nombre:          usuario.nombre         || '',
@@ -177,7 +175,7 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
           maxHeight: '90vh', overflow: 'hidden',
         }}
       >
-        {/* ── Header del modal ── */}
+        {/* â”€â”€ Header del modal â”€â”€ */}
         <div style={{ padding: '20px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 12, background: GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
@@ -193,7 +191,7 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
           </button>
         </div>
 
-        {/* ── Tabs info / rol ── */}
+        {/* â”€â”€ Tabs info / rol â”€â”€ */}
         <div style={{ padding: '16px 24px 0', display: 'flex', gap: 4, borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           {[
             { id: 'info', label: 'Datos personales', Icon: UserCog },
@@ -214,16 +212,16 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
             >
               <t.Icon size={14} /> {t.label}
               {t.id === 'rol' && rolCambio && (
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ffaa00', flexShrink: 0 }} />
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ff6b88', flexShrink: 0 }} />
               )}
             </button>
           ))}
         </div>
 
-        {/* ── Cuerpo scrollable ── */}
+        {/* â”€â”€ Cuerpo scrollable â”€â”€ */}
         <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
 
-          {/* ─ Sección: datos personales ─ */}
+          {/* â”€ SecciÃ³n: datos personales â”€ */}
           {seccion === 'info' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -243,7 +241,7 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
               </div>
 
               <div>
-                <p style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 5 }}>Teléfono</p>
+                <p style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 5 }}>TelÃ©fono</p>
                 <input value={form.telefono} onChange={e => set('telefono', e.target.value)} style={inputSt} />
               </div>
 
@@ -255,23 +253,23 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
                     onChange={e => set('tipoDocumento', e.target.value)}
                     style={{ ...inputSt, appearance: 'none', cursor: 'pointer' }}
                   >
-                    <option value="">— Sin especificar —</option>
+                    <option value="">â€” Sin especificar â€”</option>
                     {TIPO_DOC_OPTS.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 5 }}>Número documento</p>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 5 }}>NÃºmero documento</p>
                   <input value={form.numeroDocumento} onChange={e => set('numeroDocumento', e.target.value)} style={inputSt} />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 5 }}>Placa vehículo</p>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 5 }}>Placa vehÃ­culo</p>
                   <input value={form.vehiculoPlaca} onChange={e => set('vehiculoPlaca', e.target.value.toUpperCase())} style={inputSt} />
                 </div>
                 <div>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 5 }}>Modelo vehículo</p>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 5 }}>Modelo vehÃ­culo</p>
                   <input value={form.vehiculoModelo} onChange={e => set('vehiculoModelo', e.target.value)} style={inputSt} />
                 </div>
               </div>
@@ -287,12 +285,12 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
                 <div>
                   <p style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Cuenta activa</p>
                   <p style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-                    {form.activo ? 'El usuario puede iniciar sesión' : 'El usuario no puede acceder al sistema'}
+                    {form.activo ? 'El usuario puede iniciar sesiÃ³n' : 'El usuario no puede acceder al sistema'}
                   </p>
                 </div>
                 <button
                   onClick={() => set('activo', !form.activo)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: form.activo ? '#3de8c8' : C.muted, display: 'flex', padding: 4 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: form.activo ? '#ff4d6d' : C.muted, display: 'flex', padding: 4 }}
                 >
                   {form.activo
                     ? <ToggleRight size={34} strokeWidth={1.5} />
@@ -303,28 +301,28 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
             </div>
           )}
 
-          {/* ─ Sección: rol y acceso ─ */}
+          {/* â”€ SecciÃ³n: rol y acceso â”€ */}
           {seccion === 'rol' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
-                Selecciona el rol que tendrá este usuario en el sistema. Los operadores tienen acceso al panel de operaciones, check-in/out y gestión de mapas.
+                Selecciona el rol que tendrÃ¡ este usuario en el sistema. Los operadores tienen acceso al panel de operaciones, check-in/out y gestiÃ³n de mapas.
               </p>
 
               {/* Tarjetas de rol */}
               {[
                 {
                   id: 'USUARIO',
-                  title: 'Usuario estándar',
+                  title: 'Usuario estÃ¡ndar',
                   desc: 'Puede reservar espacios y ver su historial. Sin acceso al panel de operaciones.',
                   Icon: Users,
-                  color: '#5b7eff',
+                  color: '#7ba5ff',
                 },
                 {
                   id: 'OPERADOR',
                   title: 'Operador',
                   desc: 'Accede al panel de operaciones, gestiona check-in/out y edita mapas de zonas.',
                   Icon: UserCheck,
-                  color: '#ffaa00',
+                  color: '#ff6b88',
                 },
               ].map(r => {
                 const active = rolSeleccionado === r.id
@@ -377,11 +375,11 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '10px 14px', borderRadius: 10,
-                  background: '#ffaa0012', border: '1px solid #ffaa0030',
+                  background: '#ff6b8812', border: '1px solid #ff6b8830',
                 }}>
-                  <AlertTriangle size={14} color="#ffaa00" />
-                  <p style={{ fontSize: 12, color: '#ffaa00', fontFamily: FF }}>
-                    El rol cambiará de <strong>{usuario.rol}</strong> a <strong>{rolSeleccionado}</strong> al guardar.
+                  <AlertTriangle size={14} color="#ff6b88" />
+                  <p style={{ fontSize: 12, color: '#ff6b88', fontFamily: FF }}>
+                    El rol cambiarÃ¡ de <strong>{usuario.rol}</strong> a <strong>{rolSeleccionado}</strong> al guardar.
                   </p>
                 </div>
               )}
@@ -389,7 +387,7 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
           )}
         </div>
 
-        {/* ── Footer del modal ── */}
+        {/* â”€â”€ Footer del modal â”€â”€ */}
         <div style={{
           padding: '16px 24px', borderTop: `1px solid ${C.border}`,
           display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0,
@@ -397,9 +395,9 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
           {feedback && (
             <div style={{
               padding: '9px 14px', borderRadius: 9,
-              background: feedback.tipo === 'ok' ? '#3de8c814' : '#ff4d6d12',
-              border: `1px solid ${feedback.tipo === 'ok' ? '#3de8c830' : '#ff4d6d30'}`,
-              color: feedback.tipo === 'ok' ? '#3de8c8' : '#ff4d6d',
+              background: feedback.tipo === 'ok' ? '#ff4d6d14' : '#ff4d6d12',
+              border: `1px solid ${feedback.tipo === 'ok' ? '#ff4d6d30' : '#ff4d6d30'}`,
+              color: feedback.tipo === 'ok' ? '#ff4d6d' : '#ff4d6d',
               fontSize: 12, fontFamily: FF,
             }}>
               {feedback.msg}
@@ -429,7 +427,7 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
               }}
             >
               <Save size={14} />
-              {saving ? 'Guardando…' : 'Guardar cambios'}
+              {saving ? 'Guardandoâ€¦' : 'Guardar cambios'}
             </button>
           </div>
         </div>
@@ -438,7 +436,7 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
   )
 }
 
-/* ── Componente principal ─────────────────────────────────────────── */
+/* â”€â”€ Componente principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function AdminDashboard() {
   const [kpis,       setKpis]       = useState(null)
   const [reservas,   setReservas]   = useState([])
@@ -453,14 +451,14 @@ export default function AdminDashboard() {
   const [modalUsu,   setModalUsu]   = useState(null)  // usuario seleccionado para editar
   const [filtroRol,  setFiltroRol]  = useState('TODOS') // 'TODOS' | 'USUARIO' | 'OPERADOR'
 
-  /* ── carga de datos ── */
+  /* â”€â”€ carga de datos â”€â”€ */
   const cargarDatos = useCallback(async () => {
     setError(null)
 
     setLoadingKpis(true)
     try {
       const r = await auth.fetchAuth('/api/admin/dashboard')
-      if (!r.ok) throw new Error('Error al cargar métricas')
+      if (!r.ok) throw new Error('Error al cargar mÃ©tricas')
       setKpis(await r.json())
     } catch (e) { setError(e.message) }
     finally { setLoadingKpis(false) }
@@ -486,7 +484,7 @@ export default function AdminDashboard() {
 
   useEffect(() => { cargarDatos() }, [cargarDatos])
 
-  /* ── filtros ── */
+  /* â”€â”€ filtros â”€â”€ */
   const reservasFiltradas = reservas.filter(r =>
     !search ||
     r.usuarioNombre?.toLowerCase().includes(search.toLowerCase()) ||
@@ -502,7 +500,7 @@ export default function AdminDashboard() {
     return matchSearch && matchRol
   })
 
-  /* ── derivados ── */
+  /* â”€â”€ derivados â”€â”€ */
   const activas     = reservas.filter(r => r.estado === 'ACTIVA').length
   const completadas = reservas.filter(r => r.estado === 'COMPLETADA').length
   const canceladas  = reservas.filter(r => r.estado === 'CANCELADA').length
@@ -511,10 +509,11 @@ export default function AdminDashboard() {
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '36px 28px 64px', fontFamily: FF }}>
+      <div style={{ borderRadius: 28, border: `1px solid ${C.border}`, background: 'linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.02) 45%, rgba(255,255,255,.01)), #07090d', padding: '28px 22px 30px', boxShadow: '0 22px 52px rgba(0,0,0,.36)' }}>
 
-      {/* ── Header ── */}
+      {/* â”€â”€ Header â”€â”€ */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32, flexWrap: 'wrap', gap: 12 }}>
-        <h1 style={{ fontSize: 30, fontWeight: 800 }}><GradText>Dashboard Admin</GradText></h1>
+        <h1 style={{ fontSize: MAIN_TITLE_SIZE, fontWeight: 800, color: C.text, letterSpacing: '-.03em' }}>Dashboard Admin</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 11, color: C.muted }}>
             Actualizado: {lastUpdate.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
@@ -525,9 +524,9 @@ export default function AdminDashboard() {
           >
             <RefreshCw size={13} /> Actualizar
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#3de8c814', border: '1px solid #3de8c830', borderRadius: 100, padding: '6px 14px' }}>
-            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3de8c8' }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#3de8c8', fontFamily: FF }}>En vivo</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#ff4d6d14', border: '1px solid #ff4d6d30', borderRadius: 100, padding: '6px 14px' }}>
+            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#ff4d6d' }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#ff4d6d', fontFamily: FF }}>En vivo</span>
           </div>
         </div>
       </div>
@@ -539,23 +538,23 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ── KPIs ── */}
+      {/* â”€â”€ KPIs â”€â”€ */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 32 }}>
-        <KpiCard label="Reservas hoy"    value={kpis?.reservasHoy}     sub={`${activas} activas ahora`}     color="#5b7eff" Icon={CalendarCheck} loading={loadingKpis} />
-        <KpiCard label="Total usuarios"  value={kpis?.totalUsuarios}   sub="Registrados en el sistema"      color="#a259ff" Icon={Users}         loading={loadingKpis} />
-        <KpiCard label="Operadores"      value={kpis?.totalOperadores} sub="Con acceso operativo"           color="#ffaa00" Icon={UserCheck}     loading={loadingKpis} />
-        <KpiCard label="Completadas hoy" value={completadas}            sub={`${canceladas} canceladas`}    color="#3de8c8" Icon={CheckCircle}   loading={loadingRes}  />
+        <KpiCard label="Reservas hoy"    value={kpis?.reservasHoy}     sub={`${activas} activas ahora`}     color="#7ba5ff" Icon={CalendarCheck} loading={loadingKpis} />
+        <KpiCard label="Total usuarios"  value={kpis?.totalUsuarios}   sub="Registrados en el sistema"      color="#8d6bff" Icon={Users}         loading={loadingKpis} />
+        <KpiCard label="Operadores"      value={kpis?.totalOperadores} sub="Con acceso operativo"           color="#ff6b88" Icon={UserCheck}     loading={loadingKpis} />
+        <KpiCard label="Completadas hoy" value={completadas}            sub={`${canceladas} canceladas`}    color="#ff4d6d" Icon={CheckCircle}   loading={loadingRes}  />
       </div>
 
-      {/* ── Barra de distribución ── */}
+      {/* â”€â”€ Barra de distribuciÃ³n â”€â”€ */}
       {!loadingRes && reservas.length > 0 && (
         <Card style={{ padding: '16px 20px', marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-            <SectionLabel>Distribución del día</SectionLabel>
+            <SectionLabel>DistribuciÃ³n del dÃ­a</SectionLabel>
             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
               {[
-                { label: 'Activas',     val: activas,     color: '#3de8c8' },
-                { label: 'Completadas', val: completadas,  color: '#5b7eff' },
+                { label: 'Activas',     val: activas,     color: '#ff4d6d' },
+                { label: 'Completadas', val: completadas,  color: '#7ba5ff' },
                 { label: 'Canceladas',  val: canceladas,   color: '#ff4d6d' },
               ].map(s => (
                 <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -568,8 +567,8 @@ export default function AdminDashboard() {
           </div>
           <div style={{ display: 'flex', height: 8, borderRadius: 100, overflow: 'hidden', marginTop: 14, gap: 2 }}>
             {[
-              { val: activas,    color: '#3de8c8' },
-              { val: completadas, color: '#5b7eff' },
+              { val: activas,    color: '#ff4d6d' },
+              { val: completadas, color: '#7ba5ff' },
               { val: canceladas,  color: '#ff4d6d' },
             ].filter(s => s.val > 0).map((s, i) => (
               <div key={i} style={{ flex: s.val, background: s.color, borderRadius: 100 }} />
@@ -578,7 +577,7 @@ export default function AdminDashboard() {
         </Card>
       )}
 
-      {/* ── Tabs + búsqueda ── */}
+      {/* â”€â”€ Tabs + bÃºsqueda â”€â”€ */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', gap: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4 }}>
           {[
@@ -603,7 +602,7 @@ export default function AdminDashboard() {
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Filtro de rol — solo visible en tab usuarios */}
+          {/* Filtro de rol â€” solo visible en tab usuarios */}
           {tab === 'usuarios' && (
             <div style={{ display: 'flex', gap: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 3 }}>
               {['TODOS', 'USUARIO', 'OPERADOR'].map(r => (
@@ -614,10 +613,10 @@ export default function AdminDashboard() {
                     padding: '5px 12px', borderRadius: 7, border: 'none', cursor: 'pointer',
                     fontFamily: FF, fontSize: 11, fontWeight: 700,
                     background: filtroRol === r
-                      ? (r === 'OPERADOR' ? '#ffaa0022' : r === 'USUARIO' ? '#5b7eff22' : C.s2)
+                      ? (r === 'OPERADOR' ? '#ff6b8822' : r === 'USUARIO' ? '#7ba5ff22' : C.s2)
                       : 'transparent',
                     color: filtroRol === r
-                      ? (r === 'OPERADOR' ? '#ffaa00' : r === 'USUARIO' ? '#5b7eff' : C.text)
+                      ? (r === 'OPERADOR' ? '#ff6b88' : r === 'USUARIO' ? '#7ba5ff' : C.text)
                       : C.muted,
                     transition: 'all .15s',
                   }}
@@ -628,7 +627,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Búsqueda */}
+          {/* BÃºsqueda */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 14px' }}>
             <Search size={14} color={C.muted} />
             <input
@@ -641,7 +640,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* ── Tabla de reservas ── */}
+      {/* â”€â”€ Tabla de reservas â”€â”€ */}
       {tab === 'reservas' && (
         <Card style={{ padding: 0, overflow: 'hidden' }}>
           {loadingRes ? (
@@ -655,7 +654,7 @@ export default function AdminDashboard() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                  {['Usuario', 'Espacio', 'Zona · Sede', 'Horario', 'Check-in', 'Estado'].map(h => (
+                  {['Usuario', 'Espacio', 'Zona Â· Sede', 'Horario', 'Check-in', 'Estado'].map(h => (
                     <th key={h} style={{ padding: '12px 18px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', letterSpacing: '.07em', textTransform: 'uppercase', fontFamily: FF }}>
                       {h}
                     </th>
@@ -691,13 +690,13 @@ export default function AdminDashboard() {
                     <td style={{ padding: '14px 18px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <Clock size={13} color={C.muted} />
-                        <span style={{ fontSize: 13, color: C.text, fontFamily: FF }}>{fmtHora(r.fechaInicio)} – {fmtHora(r.fechaFin)}</span>
+                        <span style={{ fontSize: 13, color: C.text, fontFamily: FF }}>{fmtHora(r.fechaInicio)} â€“ {fmtHora(r.fechaFin)}</span>
                       </div>
                     </td>
                     <td style={{ padding: '14px 18px' }}>
                       {r.checkInTime
-                        ? <span style={{ fontSize: 12, color: '#3de8c8', fontWeight: 600, fontFamily: FF }}>✓ {fmtHora(r.checkInTime)}</span>
-                        : <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>—</span>
+                        ? <span style={{ fontSize: 12, color: '#ff4d6d', fontWeight: 600, fontFamily: FF }}>âœ“ {fmtHora(r.checkInTime)}</span>
+                        : <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>â€”</span>
                       }
                     </td>
                     <td style={{ padding: '14px 18px' }}>
@@ -711,7 +710,7 @@ export default function AdminDashboard() {
         </Card>
       )}
 
-      {/* ── Tabla de usuarios ── */}
+      {/* â”€â”€ Tabla de usuarios â”€â”€ */}
       {tab === 'usuarios' && (
         <>
           {/* mini-stats del tab */}
@@ -719,7 +718,7 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
               {[
                 { label: 'Total',      val: usuarios.length,                    color: C.muted    },
-                { label: 'Operadores', val: operadores,                          color: '#ffaa00'  },
+                { label: 'Operadores', val: operadores,                          color: '#ff6b88'  },
                 { label: 'Inactivos',  val: inactivos,                           color: '#ff4d6d'  },
               ].map(s => (
                 <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 9, padding: '5px 12px' }}>
@@ -742,7 +741,7 @@ export default function AdminDashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                    {['Usuario', 'Email', 'Vehículo', 'Teléfono', 'Rol', 'Estado', ''].map(h => (
+                    {['Usuario', 'Email', 'VehÃ­culo', 'TelÃ©fono', 'Rol', 'Estado', ''].map(h => (
                       <th key={h} style={{ padding: '12px 18px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', letterSpacing: '.07em', textTransform: 'uppercase', fontFamily: FF }}>
                         {h}
                       </th>
@@ -784,7 +783,7 @@ export default function AdminDashboard() {
                         <span style={{ fontSize: 13, color: C.muted, fontFamily: FF }}>{u.email}</span>
                       </td>
 
-                      {/* Vehículo */}
+                      {/* VehÃ­culo */}
                       <td style={{ padding: '14px 18px' }}>
                         {u.vehiculoPlaca ? (
                           <div>
@@ -796,13 +795,13 @@ export default function AdminDashboard() {
                             )}
                           </div>
                         ) : (
-                          <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>—</span>
+                          <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>â€”</span>
                         )}
                       </td>
 
-                      {/* Teléfono */}
+                      {/* TelÃ©fono */}
                       <td style={{ padding: '14px 18px' }}>
-                        <span style={{ fontSize: 13, color: C.muted, fontFamily: FF }}>{u.telefono || '—'}</span>
+                        <span style={{ fontSize: 13, color: C.muted, fontFamily: FF }}>{u.telefono || 'â€”'}</span>
                       </td>
 
                       {/* Rol */}
@@ -814,9 +813,9 @@ export default function AdminDashboard() {
                       <td style={{ padding: '14px 18px' }}>
                         <span style={{
                           fontSize: 11, fontWeight: 700, fontFamily: FF,
-                          color: u.activo ? '#3de8c8' : '#ff4d6d',
-                          background: u.activo ? '#3de8c814' : '#ff4d6d12',
-                          border: `1px solid ${u.activo ? '#3de8c830' : '#ff4d6d30'}`,
+                          color: u.activo ? '#ff4d6d' : '#ff4d6d',
+                          background: u.activo ? '#ff4d6d14' : '#ff4d6d12',
+                          border: `1px solid ${u.activo ? '#ff4d6d30' : '#ff4d6d30'}`,
                           borderRadius: 100, padding: '3px 10px', whiteSpace: 'nowrap',
                         }}>
                           {u.activo ? 'Activo' : 'Inactivo'}
@@ -848,8 +847,9 @@ export default function AdminDashboard() {
           </Card>
         </>
       )}
+      </div>
 
-      {/* ── Modal de edición ── */}
+      {/* â”€â”€ Modal de ediciÃ³n â”€â”€ */}
       {modalUsu && (
         <ModalEditarUsuario
           usuario={modalUsu}
@@ -869,3 +869,4 @@ export default function AdminDashboard() {
     </div>
   )
 }
+
