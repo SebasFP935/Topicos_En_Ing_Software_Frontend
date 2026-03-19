@@ -22,79 +22,170 @@ const TIPO_VEHICULO_LABEL = {
 
 // ── Mapa SVG ──────────────────────────────────────────────────────────────
 // idsDisponibles: Set<number> con IDs libres para el horario elegido, o null si aún no se consultó
-function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
-  const W = zona?.mapaAncho || 800
-  const H = zona?.mapaAlto  || 500
-  const plano = zona?.plano || []
+// ── REEMPLAZAR el componente MapaReserva en src/pages/Reservar.jsx ──────────
+// Busca la función "function MapaReserva(...)" y reemplázala COMPLETA por esto:
 
-  // Determina el estado visual del espacio considerando disponibilidad real por horario
+function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
+  const W     = zona?.mapaAncho || 800
+  const H     = zona?.mapaAlto  || 500
+  const plano = zona?.plano     || []
+
+  // Determina el estado visual del espacio considerando disponibilidad por horario
   const estadoVisual = (e) => {
-    // Estados administrativos permanentes — siempre se respetan
     if (e.estado === 'BLOQUEADO')     return 'BLOQUEADO'
     if (e.estado === 'MANTENIMIENTO') return 'MANTENIMIENTO'
-    // Si ya tenemos datos de disponibilidad para el horario elegido
     if (idsDisponibles !== null) {
-      // Si el espacio físicamente está OCUPADO (check-in hecho), lo mostramos así
       if (e.estado === 'OCUPADO') return 'OCUPADO'
-      // Si no está en la lista de disponibles → tiene reserva en ese horario
       if (!idsDisponibles.has(e.id)) return 'RESERVADO'
       return 'DISPONIBLE'
     }
-    // Sin filtro de horario aún → usar estado físico de la BD
     return e.estado
   }
 
   const colorPorEstado = {
-    DISPONIBLE:   '#3de8c8',
-    RESERVADO:    '#a259ff',
-    OCUPADO:      '#ffaa00',
-    BLOQUEADO:    '#ff4d6d',
-    MANTENIMIENTO:'#ff4d6d',
+    DISPONIBLE:    '#3de8c8',
+    RESERVADO:     '#a259ff',
+    OCUPADO:       '#ffaa00',
+    BLOQUEADO:     '#ff4d6d',
+    MANTENIMIENTO: '#ff4d6d',
   }
 
   return (
-    <div style={{ width: '100%', overflowX: 'auto', borderRadius: 14, border: `1px solid ${C.border}`, background: C.bg, minHeight: 480 }}>
+    <div style={{
+      width: '100%', overflowX: 'auto', borderRadius: 14,
+      border: `1px solid ${C.border}`, background: C.surface,
+    }}>
       {/* Indicador de carga de disponibilidad */}
       {idsDisponibles === null && (
-        <div style={{ padding: '8px 14px', background: '#5b7eff10', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 7 }}>
-          <div style={{ width: 12, height: 12, borderRadius: '50%', border: `2px solid ${C.border}`, borderTopColor: C.accent, animation: 'spin .8s linear infinite', flexShrink: 0 }} />
-          <span style={{ fontSize: 11, color: C.muted, fontFamily: FF }}>Consultando disponibilidad para el horario seleccionado...</span>
+        <div style={{
+          padding: '8px 14px', background: '#5b7eff10',
+          borderBottom: `1px solid ${C.border}`,
+          display: 'flex', alignItems: 'center', gap: 7,
+        }}>
+          <div style={{
+            width: 12, height: 12, borderRadius: '50%',
+            border: `2px solid ${C.border}`, borderTopColor: C.accent,
+            animation: 'spin .8s linear infinite', flexShrink: 0,
+          }} />
+          <span style={{ fontSize: 11, color: C.muted, fontFamily: FF }}>
+            Consultando disponibilidad para el horario seleccionado...
+          </span>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 600, minHeight: 420, display: 'block' }}>
+
+      {/* SVG del mapa — usa las mismas dimensiones y coordenadas que el editor */}
+      {/* Wrapper con aspect ratio fijo + tamaño mínimo garantizado */}
+      <div style={{ position: 'relative', width: '100%', minHeight: 520 }}>
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          style={{
+            position: 'absolute', inset: 0,
+            width: '100%', height: '100%',
+            display: 'block',
+          }}
+        >
+        {/* Fondo */}
+        <rect x={0} y={0} width={W} height={H} fill={C.surface} />
+
+        {/* Elementos decorativos del plano (paredes/pasillos) */}
         {plano.map((el, i) => (
-          <rect key={i} x={el.x} y={el.y} width={el.w} height={el.h}
-            fill={el.type === 'pared' ? '#1e2035' : '#ffffff08'} rx={el.type === 'pared' ? 2 : 6} />
+          <rect
+            key={i}
+            x={el.x} y={el.y} width={el.w} height={el.h}
+            fill={el.type === 'wall' || el.type === 'pared' ? '#1e2035' : '#ffffff06'}
+            rx={el.type === 'wall' || el.type === 'pared' ? 2 : 6}
+          />
         ))}
+
+        {/* Espacios de parqueo */}
         {espacios.map(e => {
+          // Los espacios del endpoint /api/espacios/zona/{id}
+          // tienen sus coordenadas en e.coordenadas = { x, y, w, h, angulo }
           const c = e.coordenadas || {}
-          if (!c.x && c.x !== 0) return null
+          const x   = c.x ?? e.x ?? null
+          const y   = c.y ?? e.y ?? null
+          const w   = c.w ?? e.w ?? 52
+          const h   = c.h ?? e.h ?? 72
+          const ang = c.angulo ?? e.angulo ?? 0
+
+          // Si no tiene coordenadas válidas, no renderizar
+          if (x === null || y === null) return null
+
+          const cx = x + w / 2
+          const cy = y + h / 2
           const ev = estadoVisual(e)
           const color = colorPorEstado[ev] || '#3de8c8'
           const disponible = ev === 'DISPONIBLE'
+          const fs = Math.min(w, h) < 40 ? 7 : 9
+
           return (
-            <g key={e.id} onClick={() => disponible && onSelect(e)}
-              style={{ cursor: disponible ? 'pointer' : 'not-allowed' }}>
-              <rect x={c.x} y={c.y} width={c.w || 72} height={c.h || 140} rx={8}
-                fill={color + '22'} stroke={color} strokeWidth={disponible ? 2 : 1.5}
-                strokeDasharray={disponible ? 'none' : '4 3'} opacity={ev === 'DISPONIBLE' ? 1 : 0.75} />
-              <text x={c.x + (c.w||72)/2} y={c.y + (c.h||140)/2 - 6}
-                textAnchor="middle" fill={color} fontSize={11} fontWeight={700} fontFamily={FF}>
+            <g
+              key={e.id}
+              transform={ang ? `rotate(${ang}, ${cx}, ${cy})` : undefined}
+              onClick={() => disponible && onSelect(e)}
+              style={{ cursor: disponible ? 'pointer' : 'default' }}
+            >
+              {/* Cuerpo del espacio */}
+              <rect
+                x={x + 2} y={y + 2}
+                width={w - 4} height={h - 4}
+                rx={5}
+                fill={color + (disponible ? '22' : '15')}
+                stroke={color}
+                strokeWidth={disponible ? 2 : 1.5}
+                strokeDasharray={disponible ? 'none' : '4 3'}
+                opacity={ev === 'BLOQUEADO' || ev === 'MANTENIMIENTO' ? 0.45 : 1}
+              />
+
+              {/* Línea de orientación (frente del espacio) */}
+              <line
+                x1={x + w * 0.2} y1={y + 4}
+                x2={x + w * 0.8} y2={y + 4}
+                stroke={color} strokeWidth={2}
+                strokeLinecap="round" opacity={0.5}
+                pointerEvents="none"
+              />
+
+              {/* Indicador de estado (punto en esquina) */}
+              <circle
+                cx={x + w - 8} cy={y + 8} r={4}
+                fill={color}
+                pointerEvents="none"
+              />
+
+              {/* Código del espacio */}
+              <text
+                x={cx} y={cy + 2}
+                textAnchor="middle"
+                fontSize={fs}
+                fontWeight={700}
+                fill={color}
+                fontFamily={FF}
+                pointerEvents="none"
+              >
                 {e.codigo}
-              </text>
-              <text x={c.x + (c.w||72)/2} y={c.y + (c.h||140)/2 + 10}
-                textAnchor="middle" fill={color + 'bb'} fontSize={9} fontFamily={FF}>
-                {e.tipoVehiculo}
               </text>
             </g>
           )
         })}
-      </svg>
-      <div style={{ display: 'flex', gap: 18, padding: '10px 14px', borderTop: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
-        {[['#3de8c8','Disponible'],['#a259ff','Reservado en este horario'],['#ffaa00','Ocupado'],['#ff4d6d','Bloqueado']].map(([color, label]) => (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: 3, background: color }} />
+        </svg>
+      </div>
+
+      {/* Leyenda */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 16,
+        padding: '10px 16px', borderTop: `1px solid ${C.border}`,
+        flexWrap: 'wrap',
+      }}>
+        {[
+          { label: 'Disponible',            color: '#3de8c8' },
+          { label: 'Reservado en este horario', color: '#a259ff' },
+          { label: 'Ocupado',               color: '#ffaa00' },
+          { label: 'Bloqueado',             color: '#ff4d6d' },
+        ].map(({ label, color }) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
             <span style={{ fontSize: 11, color: C.muted, fontFamily: FF }}>{label}</span>
           </div>
         ))}

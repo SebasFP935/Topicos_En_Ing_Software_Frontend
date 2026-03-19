@@ -1,247 +1,683 @@
 // src/pages/OperadorEditorMapa.jsx
 //
-// API real usada:
-//   GET  /api/zonas/{id}/mapa          — carga mapa completo
-//   PUT  /api/zonas/{id}/mapa          — guarda todo en bulk (imagen + espacios)
+// Editor profesional de zonas de parqueo
+// Features:
+//   - Rotación libre (drag handle circular) + snap a 15°/45°/90° con Shift
+//   - Panel de propiedades en tiempo real (X, Y, W, H, Ángulo, Código, Tipo)
+//   - Multi-selección con Shift+clic o recuadro de selección
+//   - Undo / Redo  (Ctrl+Z / Ctrl+Y)
+//   - Duplicar espacio (Ctrl+D)
+//   - Zoom y Pan estilo Figma (rueda + Espacio+drag)
+//   - Alinear y distribuir selección múltiple
+//   - Líneas guía de snap a bordes de otros espacios
+//   - Auto-generar grilla de espacios
+//   - Imagen de fondo (plano real del parqueo)
+//   - Guardar → PUT /api/zonas/{id}/mapa
 //
-// Todo cambio (drag, resize, añadir, eliminar, imagen) es LOCAL hasta
-// que el usuario pulsa "Guardar". No hay PATCH granulares.
+// API:
+//   GET  /api/zonas/{id}/mapa
+//   PUT  /api/zonas/{id}/mapa
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Upload, Grid, Plus, Trash2, QrCode,
-  Download, AlertTriangle, X, Image, RefreshCw,
-  ZoomIn, ZoomOut, RotateCcw, Move, Save,
+  ArrowLeft, Save, ZoomIn, ZoomOut, Maximize2,
+  RotateCcw, RotateCw, Copy, Trash2, Upload, ImageOff,
+  AlignLeft, AlignRight, AlignCenterHorizontal,
+  AlignStartHorizontal, AlignEndHorizontal, AlignCenterVertical,
+  AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
+  Layers, Settings2, Plus,
+  LayoutGrid, ChevronDown, ChevronUp, Undo2, Redo2,
+  MousePointer2, Move, Zap,
 } from 'lucide-react'
 import { C, GRAD } from '../tokens'
-import { SectionLabel } from '../components/ui/SectionLabel'
 import { auth } from '../utils/auth'
 
-const FF    = "'Plus Jakarta Sans', sans-serif"
-const SNAP  = 5
-const snapV = v => Math.round(v / SNAP) * SNAP
+const FF = "'Plus Jakarta Sans', sans-serif"
+const GRID = 10
+const SNAP_ANGLE = 15      // grados al hacer snap con Shift
+const GUIDE_THRESH = 8     // px para activar línea guía
+const MIN_SIZE = 20
+const HANDLE_R = 6         // radio de handle resize
+const ROT_HANDLE_OFFSET = 24  // distancia del handle de rotación
 
-const TIPOS = ['AUTO', 'MOTO', 'DISCAPACITADO', 'ELECTRICO']
 const TV_COLOR = {
-  AUTO:          '#5b7eff',
-  MOTO:          '#a259ff',
-  DISCAPACITADO: '#ffaa00',
-  ELECTRICO:     '#3de8c8',
+  AUTO:         '#5b7eff',
+  MOTO:         '#a259ff',
+  BICICLETA:    '#3de8c8',
+  DISCAPACIDAD: '#ffaa00',
+  ELECTRICO:    '#3de8c8',
 }
-const ESTADO_COLOR = {
-  DISPONIBLE:    '#3de8c8',
-  RESERVADO:     '#a259ff',
-  OCUPADO:       '#ffaa00',
-  BLOQUEADO:     '#ff4d6d',
-  MANTENIMIENTO: '#ff4d6d',
+const TV_ICON = { AUTO: '🚗', MOTO: '🏍', BICICLETA: '🚲', DISCAPACIDAD: '♿', ELECTRICO: '⚡' }
+const TIPOS = ['AUTO', 'MOTO', 'BICICLETA', 'DISCAPACIDAD', 'ELECTRICO']
+
+const snap = (v, g = GRID) => Math.round(v / g) * g
+const uid  = () => 'tmp_' + Math.random().toString(36).slice(2, 9)
+const deg  = rad => rad * 180 / Math.PI
+const rad  = d => d * Math.PI / 180
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+
+// Obtener esquinas rotadas de un espacio
+function getCorners(esp) {
+  const cx = esp.x + esp.w / 2
+  const cy = esp.y + esp.h / 2
+  const a  = rad(esp.angulo || 0)
+  const hw = esp.w / 2
+  const hh = esp.h / 2
+  const cos = Math.cos(a)
+  const sin = Math.sin(a)
+  return [
+    { x: cx + (-hw * cos - -hh * sin), y: cy + (-hw * sin + -hh * cos) },
+    { x: cx + ( hw * cos - -hh * sin), y: cy + ( hw * sin + -hh * cos) },
+    { x: cx + ( hw * cos -  hh * sin), y: cy + ( hw * sin +  hh * cos) },
+    { x: cx + (-hw * cos -  hh * sin), y: cy + (-hw * sin +  hh * cos) },
+  ]
 }
 
-// ── Helpers UI ────────────────────────────────────────────────────────
+// AABB de un espacio rotado
+function getBBox(esp) {
+  if (!esp.angulo) return { x: esp.x, y: esp.y, x2: esp.x + esp.w, y2: esp.y + esp.h }
+  const corners = getCorners(esp)
+  const xs = corners.map(c => c.x)
+  const ys = corners.map(c => c.y)
+  return { x: Math.min(...xs), y: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) }
+}
 
-function Modal({ title, onClose, children, maxWidth = 440 }) {
+// ── ToolButton ─────────────────────────────────────────────────────────────
+function TB({ active, onClick, title, children, danger }) {
   return (
-    <div
-      style={{ position:'fixed', inset:0, background:'#00000085', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
-      onClick={onClose}
+    <button
+      title={title}
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 34, height: 34, borderRadius: 8,
+        background: active ? GRAD : danger ? C.danger + '18' : 'transparent',
+        color: active ? '#fff' : danger ? C.danger : C.muted,
+        border: `1px solid ${active ? 'transparent' : danger ? C.danger + '40' : C.border}`,
+        cursor: 'pointer', transition: 'all .12s', flexShrink: 0,
+      }}
     >
-      <div
-        style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:18, padding:24, width:'100%', maxWidth, boxShadow:'0 24px 60px #00000060' }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-          <p style={{ fontSize:17, fontWeight:800, color:C.text, fontFamily:FF }}>{title}</p>
-          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:C.muted, padding:4 }}>
-            <X size={18}/>
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function Field({ label, children }) {
-  return (
-    <div>
-      <p style={{ fontSize:12, fontWeight:600, color:C.muted, fontFamily:FF, marginBottom:6 }}>{label}</p>
       {children}
-    </div>
-  )
-}
-
-const inputSt = {
-  width:'100%', padding:'9px 12px', borderRadius:9,
-  background:C.s2, border:`1px solid ${C.border}`,
-  color:C.text, fontSize:14, fontFamily:FF,
-  boxSizing:'border-box', outline:'none',
-}
-
-function TipoBtn({ t, active, onClick }) {
-  const color = TV_COLOR[t] || C.accent
-  return (
-    <button onClick={onClick} style={{ padding:'5px 12px', borderRadius:7, cursor:'pointer', fontFamily:FF, background:active?color+'22':C.s2, border:`1px solid ${active?color:C.border}`, color:active?color:C.muted, fontSize:11, fontWeight:700 }}>
-      {t}
     </button>
   )
 }
 
-function Btn({ children, onClick, disabled, ghost, danger, small, style={} }) {
-  const base = {
-    display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-    padding: small ? '6px 10px' : '10px 14px',
-    borderRadius:9, cursor:disabled?'default':'pointer', border:'none',
-    fontFamily:FF, fontSize: small ? 11 : 13, fontWeight:700,
-    opacity:disabled?0.4:1,
-  }
-  const variant = ghost
-    ? { background:C.s2, color:C.muted, border:`1px solid ${C.border}` }
-    : danger
-    ? { background:'#ff4d6d14', color:'#ff4d6d', border:'1px solid #ff4d6d25' }
-    : { background:GRAD, color:'#fff' }
-  return <button onClick={disabled?undefined:onClick} style={{...base,...variant,...style}}>{children}</button>
-}
+// ── Separador de toolbar ───────────────────────────────────────────────────
+const Sep = () => <div style={{ width: 1, height: 22, background: C.border, margin: '0 4px' }} />
 
-function LoadingScreen() {
+// ── Input numérico para el panel de propiedades ────────────────────────────
+function NumInput({ label, value, onChange, unit = '', min, max, step = 1 }) {
+  const [local, setLocal] = useState(String(value ?? ''))
+  useEffect(() => setLocal(String(value ?? '')), [value])
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:C.bg }}>
-      <div style={{ textAlign:'center' }}>
-        <div style={{ width:40, height:40, borderRadius:'50%', border:`3px solid ${C.border}`, borderTopColor:C.accent, animation:'spin .8s linear infinite', margin:'0 auto 14px' }}/>
-        <p style={{ color:C.muted, fontFamily:FF, fontSize:14 }}>Cargando mapa…</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+      <label style={{ fontSize: 10, color: C.muted, fontFamily: FF, fontWeight: 600, letterSpacing: .5 }}>{label}</label>
+      <div style={{ display: 'flex', alignItems: 'center', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 6, overflow: 'hidden' }}>
+        <input
+          type="number"
+          value={local}
+          min={min} max={max} step={step}
+          onChange={e => { setLocal(e.target.value) }}
+          onBlur={() => {
+            const n = parseFloat(local)
+            if (!isNaN(n)) onChange(min !== undefined ? Math.max(min, n) : n)
+            else setLocal(String(value ?? ''))
+          }}
+          onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
+          style={{
+            flex: 1, padding: '5px 8px', background: 'transparent',
+            border: 'none', color: C.text, fontSize: 12, fontFamily: FF,
+            outline: 'none', minWidth: 0,
+          }}
+        />
+        {unit && <span style={{ fontSize: 10, color: C.muted, padding: '0 6px', fontFamily: FF }}>{unit}</span>}
       </div>
-      <style>{'@keyframes spin{to{transform:rotate(360deg)}}'}</style>
     </div>
   )
 }
 
-// ── Componente principal ──────────────────────────────────────────────
+// ── Cargando ───────────────────────────────────────────────────────────────
+function Loading() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: C.bg, flexDirection: 'column', gap: 16 }}>
+      <div style={{ width: 40, height: 40, border: `3px solid ${C.border}`, borderTop: `3px solid ${C.accent}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      <p style={{ color: C.muted, fontSize: 14, fontFamily: FF }}>Cargando editor…</p>
+    </div>
+  )
+}
 
+// ══════════════════════════════════════════════════════════════════════════
+//  COMPONENTE PRINCIPAL
+// ══════════════════════════════════════════════════════════════════════════
 export default function OperadorEditorMapa() {
-  const { zonaId } = useParams()
-  const navigate   = useNavigate()
+  const { zonaId }  = useParams()
+  const navigate    = useNavigate()
 
-  // Estado del mapa
-  const [zonaNombre,  setZonaNombre]  = useState('')
-  const [mapaAncho,   setMapaAncho]   = useState(1200)
-  const [mapaAlto,    setMapaAlto]    = useState(700)
-  const [imagenFondo, setImagenFondo] = useState(null)
-  const [espacios,    setEspacios]    = useState([])
-
-  // UI
+  // ── Datos básicos ──────────────────────────────────────────────────────
+  const [zonaNombre,   setZonaNombre]   = useState('')
   const [loading,      setLoading]      = useState(true)
   const [saving,       setSaving]       = useState(false)
-  const [hayCambios,   setHayCambios]   = useState(false)
-  const [selId,        setSelId]        = useState(null)
   const [toast,        setToast]        = useState(null)
+  const [hayCambios,   setHayCambios]   = useState(false)
+
+  // ── Canvas ─────────────────────────────────────────────────────────────
+  const [espacios,     setEspacios]     = useState([])
+  const [imagenFondo,  setImagenFondo]  = useState(null)
+  const [mapaAncho,    setMapaAncho]    = useState(1200)
+  const [mapaAlto,     setMapaAlto]     = useState(700)
+
+  // ── Selección ─────────────────────────────────────────────────────────
+  const [selIds,       setSelIds]       = useState(new Set())   // multi-select
+  const [tool,         setTool]         = useState('select')    // 'select' | 'draw' | 'pan'
+  const [showAutoGen,  setShowAutoGen]  = useState(false)
+
+  // ── Zoom & pan ─────────────────────────────────────────────────────────
   const [zoom,         setZoom]         = useState(1)
+  const [pan,          setPan]          = useState({ x: 0, y: 0 })
+  const [isPanning,    setIsPanning]    = useState(false)
 
-  // Modales
-  const [mAutoGen, setMAutoGen] = useState(false)
-  const [mAddEsp,  setMAddEsp]  = useState(false)
-  const [mQr,      setMQr]      = useState(null)
+  // ── Undo / Redo ────────────────────────────────────────────────────────
+  const historyRef  = useRef([])
+  const histIdxRef  = useRef(-1)
+  const [canUndo,   setCanUndo]   = useState(false)
+  const [canRedo,   setCanRedo]   = useState(false)
 
-  // Formularios de modales
+  // ── Drag state ─────────────────────────────────────────────────────────
+  const dragRef     = useRef(null)
+  const panRef      = useRef(null)
+  const selBoxRef   = useRef(null)  // recuadro de selección
+  const svgRef      = useRef(null)
+  const containerRef= useRef(null)
+
+  // ── Snap guides + selection box ────────────────────────────────────────
+  const [guides,       setGuides]       = useState([])   // [{type:'v'|'h', pos}]
+  const [selBox,       setSelBox]       = useState(null) // {x0,y0,x1,y1} rendered rect
+
+  // ── Auto-gen form ──────────────────────────────────────────────────────
   const [autoForm, setAutoForm] = useState({
-    tipoVehiculo: 'AUTO', reemplazar: true,
-    margenX: '30', margenY: '30',
-    espaciadoH: '12', espaciadoV: '12',
+    prefijo: 'A', columnas: '', filas: '',
     espacioAncho: '52', espacioAlto: '72',
-    columnas: '', filas: '',
+    espaciadoH: '10', espaciadoV: '10',
+    margenX: '30', margenY: '30',
+    tipo: 'AUTO', angulo: '0', reemplazar: false,
   })
-  const [addForm, setAddForm] = useState({ codigo: '', tipoVehiculo: 'AUTO' })
 
-  // Refs para drag/resize
-  const svgRef       = useRef(null)
-  const containerRef = useRef(null)
-  const dragRef      = useRef(null)
-  const espaciosRef  = useRef([])
-  useEffect(() => { espaciosRef.current = espacios }, [espacios])
+  // ── propiedades del espacio seleccionado ───────────────────────────────
+  const selArr = useMemo(() => espacios.filter(e => selIds.has(e.id)), [espacios, selIds])
+  const selOne = selArr.length === 1 ? selArr[0] : null
 
-  // ── Toast ────────────────────────────────────────────────────────────
-  const showToast = (msg, tipo = 'success') => {
+  // ── Toast ─────────────────────────────────────────────────────────────
+  const showToast = useCallback((msg, tipo = 'success') => {
     setToast({ msg, tipo })
-    setTimeout(() => setToast(null), 3200)
+    setTimeout(() => setToast(null), 3000)
+  }, [])
+
+  // ── Undo / Redo helpers ────────────────────────────────────────────────
+  const pushHistory = useCallback((state) => {
+    const idx = histIdxRef.current
+    historyRef.current = historyRef.current.slice(0, idx + 1)
+    historyRef.current.push(JSON.parse(JSON.stringify(state)))
+    histIdxRef.current = historyRef.current.length - 1
+    setCanUndo(histIdxRef.current > 0)
+    setCanRedo(false)
+  }, [])
+
+  const undo = useCallback(() => {
+    if (histIdxRef.current <= 0) return
+    histIdxRef.current--
+    const state = historyRef.current[histIdxRef.current]
+    setEspacios(state)
+    setSelIds(new Set())
+    setCanUndo(histIdxRef.current > 0)
+    setCanRedo(true)
+    setHayCambios(true)
+  }, [])
+
+  const redo = useCallback(() => {
+    if (histIdxRef.current >= historyRef.current.length - 1) return
+    histIdxRef.current++
+    const state = historyRef.current[histIdxRef.current]
+    setEspacios(state)
+    setSelIds(new Set())
+    setCanUndo(true)
+    setCanRedo(histIdxRef.current < historyRef.current.length - 1)
+    setHayCambios(true)
+  }, [])
+
+  const commitChange = useCallback((newEspacios) => {
+    setEspacios(newEspacios)
+    pushHistory(newEspacios)
+    setHayCambios(true)
+  }, [pushHistory])
+
+  // ── Cargar mapa ────────────────────────────────────────────────────────
+  useEffect(() => {
+    auth.fetchAuth(`/api/zonas/${zonaId}/mapa`)
+      .then(r => r.json())
+      .then(data => {
+        setZonaNombre(data.zonaNombre || '')
+        setMapaAncho(data.mapaAncho || 1200)
+        setMapaAlto(data.mapaAlto || 700)
+        setImagenFondo(data.planoImagen || null)
+        const esps = (data.espacios || []).map(e => ({ ...e, angulo: e.angulo || 0 }))
+        setEspacios(esps)
+        pushHistory(esps)
+      })
+      .catch(() => {
+        setEspacios([])
+        pushHistory([])
+      })
+      .finally(() => setLoading(false))
+  }, [zonaId, pushHistory])
+
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e) => {
+      const tag = document.activeElement?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); return }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); return }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') { e.preventDefault(); duplicarSel(); return }
+      if (e.key === 'Delete' || e.key === 'Backspace') { eliminarSel(); return }
+      if (e.key === ' ') { e.preventDefault(); setTool(t => t === 'pan' ? 'select' : 'pan'); return }
+      if (e.key === 'Escape') { setSelIds(new Set()); return }
+      if (e.key === 'v') setTool('select')
+      if (e.key === 'a' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setSelIds(new Set(espacios.map(e => e.id))); return }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [espacios, undo, redo]) // eslint-disable-line
+
+  // ── Coordenadas SVG desde evento ───────────────────────────────────────
+  const getSVGCoord = useCallback((e) => {
+    if (!svgRef.current) return { x: 0, y: 0 }
+    const rect = svgRef.current.getBoundingClientRect()
+    return {
+      x: (e.clientX - rect.left - pan.x) / zoom,
+      y: (e.clientY - rect.top  - pan.y) / zoom,
+    }
+  }, [pan, zoom])
+
+  // ── Calcular guías de snap ─────────────────────────────────────────────
+  const calcGuides = useCallback((movingIds, newEspacios) => {
+    const moving = newEspacios.filter(e => movingIds.has(e.id))
+    const still  = newEspacios.filter(e => !movingIds.has(e.id))
+    const guides = []
+    moving.forEach(mv => {
+      const bb = getBBox(mv)
+      still.forEach(st => {
+        const sb = getBBox(st)
+        const pts = [
+          { type: 'v', pos: sb.x,              ref: bb.x  },
+          { type: 'v', pos: sb.x2,             ref: bb.x  },
+          { type: 'v', pos: (sb.x+sb.x2)/2,   ref: (bb.x+bb.x2)/2 },
+          { type: 'h', pos: sb.y,              ref: bb.y  },
+          { type: 'h', pos: sb.y2,             ref: bb.y  },
+          { type: 'h', pos: (sb.y+sb.y2)/2,   ref: (bb.y+bb.y2)/2 },
+        ]
+        pts.forEach(p => {
+          if (Math.abs(p.pos - p.ref) < GUIDE_THRESH / zoom)
+            guides.push({ type: p.type, pos: p.pos })
+        })
+      })
+    })
+    setGuides(guides)
+  }, [zoom])
+
+  // ── Mouse Down en canvas ───────────────────────────────────────────────
+  const onMouseDown = useCallback((e) => {
+    if (e.button === 1 || tool === 'pan') {
+      // Middle click o herramienta pan
+      panRef.current = { startX: e.clientX - pan.x, startY: e.clientY - pan.y }
+      setIsPanning(true)
+      return
+    }
+    if (tool === 'draw') return  // handled by rect draw
+
+    const pt = getSVGCoord(e)
+
+    // ¿Tocó algún espacio?
+    const hit = [...espacios].reverse().find(esp => {
+      const cx = esp.x + esp.w / 2
+      const cy = esp.y + esp.h / 2
+      const a  = -rad(esp.angulo || 0)
+      const dx = pt.x - cx
+      const dy = pt.y - cy
+      const lx = dx * Math.cos(a) - dy * Math.sin(a)
+      const ly = dx * Math.sin(a) + dy * Math.cos(a)
+      return Math.abs(lx) <= esp.w / 2 && Math.abs(ly) <= esp.h / 2
+    })
+
+    if (hit) {
+      // Actualizar selección
+      if (e.shiftKey) {
+        setSelIds(prev => {
+          const next = new Set(prev)
+          next.has(hit.id) ? next.delete(hit.id) : next.add(hit.id)
+          return next
+        })
+      } else {
+        if (!selIds.has(hit.id)) setSelIds(new Set([hit.id]))
+      }
+      // Preparar drag move
+      const snapshots = {}
+      espacios.forEach(esp => { snapshots[esp.id] = { x: esp.x, y: esp.y } })
+      dragRef.current = {
+        type: 'move',
+        startX: pt.x, startY: pt.y,
+        snapshots,
+        ids: e.shiftKey
+          ? (selIds.has(hit.id) ? [...selIds].filter(id => id !== hit.id) : [...selIds, hit.id])
+          : (selIds.has(hit.id) ? [...selIds] : [hit.id]),
+      }
+    } else {
+      // Clic en vacío → deseleccionar o iniciar recuadro
+      if (!e.shiftKey) setSelIds(new Set())
+      selBoxRef.current = { x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y }
+    }
+  }, [tool, pan, getSVGCoord, espacios, selIds])
+
+  // ── Mouse Move global ──────────────────────────────────────────────────
+  useEffect(() => {
+    const onMove = (e) => {
+      // Pan
+      if (isPanning && panRef.current) {
+        setPan({ x: e.clientX - panRef.current.startX, y: e.clientY - panRef.current.startY })
+        return
+      }
+      // Drag move
+      if (dragRef.current?.type === 'move') {
+        const pt = getSVGCoord(e)
+        const dx = pt.x - dragRef.current.startX
+        const dy = pt.y - dragRef.current.startY
+        const ids = new Set(dragRef.current.ids)
+        setEspacios(prev => {
+          const next = prev.map(esp => {
+            if (!ids.has(esp.id)) return esp
+            const orig = dragRef.current.snapshots[esp.id]
+            return { ...esp, x: snap(orig.x + dx), y: snap(orig.y + dy) }
+          })
+          calcGuides(ids, next)
+          return next
+        })
+        return
+      }
+      // Drag rotate
+      if (dragRef.current?.type === 'rotate') {
+        const pt = getSVGCoord(e)
+        const { cx, cy, id } = dragRef.current
+        let angle = deg(Math.atan2(pt.y - cy, pt.x - cx)) + 90
+        if (e.shiftKey) angle = Math.round(angle / SNAP_ANGLE) * SNAP_ANGLE
+        angle = ((angle % 360) + 360) % 360
+        setEspacios(prev => prev.map(esp => esp.id === id ? { ...esp, angulo: Math.round(angle) } : esp))
+        return
+      }
+      // Drag resize
+      if (dragRef.current?.type === 'resize') {
+        const pt = getSVGCoord(e)
+        const { handle, id, origX, origY, origW, origH, startX, startY } = dragRef.current
+        const dx = pt.x - startX
+        const dy = pt.y - startY
+        setEspacios(prev => prev.map(esp => {
+          if (esp.id !== id) return esp
+          let { x, y, w, h } = { x: origX, y: origY, w: origW, h: origH }
+          if (handle.includes('e')) { w = Math.max(MIN_SIZE, snap(origW + dx)) }
+          if (handle.includes('s')) { h = Math.max(MIN_SIZE, snap(origH + dy)) }
+          if (handle.includes('w')) { const nw = Math.max(MIN_SIZE, snap(origW - dx)); x = origX + origW - nw; w = nw }
+          if (handle.includes('n')) { const nh = Math.max(MIN_SIZE, snap(origH - dy)); y = origY + origH - nh; h = nh }
+          return { ...esp, x, y, w, h }
+        }))
+        return
+      }
+      // Recuadro de selección
+      if (selBoxRef.current) {
+        const pt = getSVGCoord(e)
+        selBoxRef.current = { ...selBoxRef.current, x1: pt.x, y1: pt.y }
+        setSelBox({ ...selBoxRef.current })
+        // Highlight en tiempo real
+        const { x0, y0, x1, y1 } = selBoxRef.current
+        const rx = Math.min(x0, x1), ry = Math.min(y0, y1)
+        const rw = Math.abs(x1 - x0), rh = Math.abs(y1 - y0)
+        if (rw > 4 || rh > 4) {
+          const inBox = espacios.filter(esp => {
+            const bb = getBBox(esp)
+            return bb.x >= rx && bb.x2 <= rx + rw && bb.y >= ry && bb.y2 <= ry + rh
+          })
+          setSelIds(new Set(inBox.map(e => e.id)))
+        }
+      }
+    }
+    const onUp = (e) => {
+      if (isPanning) { setIsPanning(false); panRef.current = null; return }
+      if (dragRef.current?.type === 'move') {
+        setGuides([])
+        commitChange([...espacios])
+      }
+      if (dragRef.current?.type === 'rotate' || dragRef.current?.type === 'resize') {
+        commitChange([...espacios])
+      }
+      dragRef.current = null
+      selBoxRef.current = null
+      setSelBox(null)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [isPanning, getSVGCoord, espacios, commitChange, calcGuides])
+
+  // ── Zoom con rueda ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return  // solo con ctrl/cmd
+      e.preventDefault()
+      const delta = -e.deltaY * 0.001
+      setZoom(z => clamp(z * (1 + delta), 0.15, 5))
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  // ── Rueda sin ctrl → pan ───────────────────────────────────────────────
+  const onWheel = useCallback((e) => {
+    if (e.ctrlKey || e.metaKey) return
+    setPan(p => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }))
+  }, [])
+
+  // ── Iniciar handle rotate ──────────────────────────────────────────────
+  const startRotate = useCallback((e, esp) => {
+    e.stopPropagation()
+    dragRef.current = {
+      type: 'rotate',
+      id: esp.id,
+      cx: esp.x + esp.w / 2,
+      cy: esp.y + esp.h / 2,
+    }
+  }, [])
+
+  // ── Iniciar handle resize ──────────────────────────────────────────────
+  const startResize = useCallback((e, esp, handle) => {
+    e.stopPropagation()
+    dragRef.current = {
+      type: 'resize', id: esp.id, handle,
+      startX: getSVGCoord(e).x,
+      startY: getSVGCoord(e).y,
+      origX: esp.x, origY: esp.y,
+      origW: esp.w, origH: esp.h,
+    }
+  }, [getSVGCoord])
+
+  // ── Herramientas de edición ────────────────────────────────────────────
+  const eliminarSel = useCallback(() => {
+    if (selIds.size === 0) return
+    commitChange(espacios.filter(e => !selIds.has(e.id)))
+    setSelIds(new Set())
+  }, [espacios, selIds, commitChange])
+
+  const duplicarSel = useCallback(() => {
+    if (selIds.size === 0) return
+    const nuevos = espacios
+      .filter(e => selIds.has(e.id))
+      .map(e => ({ ...e, id: uid(), x: e.x + 20, y: e.y + 20, codigo: e.codigo + '_copia' }))
+    const next = [...espacios, ...nuevos]
+    commitChange(next)
+    setSelIds(new Set(nuevos.map(e => e.id)))
+  }, [espacios, selIds, commitChange])
+
+  const rotar = useCallback((delta) => {
+    if (selIds.size === 0) return
+    commitChange(espacios.map(e =>
+      selIds.has(e.id) ? { ...e, angulo: (((e.angulo || 0) + delta) % 360 + 360) % 360 } : e
+    ))
+  }, [espacios, selIds, commitChange])
+
+  // ── Alinear selección ──────────────────────────────────────────────────
+  const alinear = useCallback((tipo) => {
+    if (selArr.length < 2) return
+    const bboxes = selArr.map(e => ({ id: e.id, bb: getBBox(e), e }))
+    const minX  = Math.min(...bboxes.map(b => b.bb.x))
+    const maxX2 = Math.max(...bboxes.map(b => b.bb.x2))
+    const minY  = Math.min(...bboxes.map(b => b.bb.y))
+    const maxY2 = Math.max(...bboxes.map(b => b.bb.y2))
+    const midX  = (minX + maxX2) / 2
+    const midY  = (minY + maxY2) / 2
+
+    commitChange(espacios.map(esp => {
+      const b = bboxes.find(b => b.id === esp.id)
+      if (!b) return esp
+      const bb = b.bb
+      let { x, y } = esp
+      if (tipo === 'left')    x = esp.x + (minX - bb.x)
+      if (tipo === 'right')   x = esp.x + (maxX2 - bb.x2)
+      if (tipo === 'centerH') x = esp.x + (midX - (bb.x + bb.x2) / 2)
+      if (tipo === 'top')     y = esp.y + (minY - bb.y)
+      if (tipo === 'bottom')  y = esp.y + (maxY2 - bb.y2)
+      if (tipo === 'centerV') y = esp.y + (midY - (bb.y + bb.y2) / 2)
+      return { ...esp, x: snap(x), y: snap(y) }
+    }))
+  }, [espacios, selArr, commitChange])
+
+  const distribuir = useCallback((dir) => {
+    if (selArr.length < 3) return
+    const sorted = [...selArr].sort((a, b) => dir === 'h' ? a.x - b.x : a.y - b.y)
+    const first = sorted[0], last = sorted[sorted.length - 1]
+    const totalGap = dir === 'h'
+      ? (last.x + last.w) - first.x - sorted.reduce((s, e) => s + e.w, 0)
+      : (last.y + last.h) - first.y - sorted.reduce((s, e) => s + e.h, 0)
+    const gap = totalGap / (sorted.length - 1)
+    let cursor = dir === 'h' ? first.x + first.w : first.y + first.h
+    const newPositions = {}
+    sorted.slice(1, -1).forEach(e => {
+      newPositions[e.id] = dir === 'h' ? { x: snap(cursor + gap) } : { y: snap(cursor + gap) }
+      cursor += (dir === 'h' ? e.w : e.h) + gap
+    })
+    commitChange(espacios.map(e => ({ ...e, ...(newPositions[e.id] || {}) })))
+  }, [espacios, selArr, commitChange])
+
+  // ── Actualizar propiedad individual ───────────────────────────────────
+  const updateProp = useCallback((id, field, val) => {
+    commitChange(espacios.map(e => e.id === id ? { ...e, [field]: val } : e))
+  }, [espacios, commitChange])
+
+  // ── Upload imagen ──────────────────────────────────────────────────────
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const b64 = ev.target.result
+      const img = new window.Image()
+      img.onload = () => {
+        const ratio = img.naturalHeight / img.naturalWidth
+        setImagenFondo(b64)
+        setMapaAlto(Math.round(mapaAncho * ratio))
+        setHayCambios(true)
+        showToast('Imagen cargada')
+      }
+      img.src = b64
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
   }
 
-  // ── Marcar cambios pendientes ─────────────────────────────────────────
-  const markDirty = () => setHayCambios(true)
+  // ── Auto-generar ───────────────────────────────────────────────────────
+  const handleAutoGen = () => {
+    const mX = parseFloat(autoForm.margenX)      || 30
+    const mY = parseFloat(autoForm.margenY)      || 30
+    const eH = parseFloat(autoForm.espaciadoH)   || 10
+    const eV = parseFloat(autoForm.espaciadoV)   || 10
+    const ew = parseFloat(autoForm.espacioAncho) || 52
+    const eh = parseFloat(autoForm.espacioAlto)  || 72
+    const ang = parseFloat(autoForm.angulo) || 0
+    const cols = autoForm.columnas ? parseInt(autoForm.columnas)
+      : Math.max(1, Math.floor((mapaAncho - 2 * mX + eH) / (ew + eH)))
+    const rows = autoForm.filas ? parseInt(autoForm.filas)
+      : Math.max(1, Math.floor((mapaAlto - 2 * mY + eV) / (eh + eV)))
 
-  // ── Zoom ─────────────────────────────────────────────────────────────
-  const ZOOM_MIN = 0.3, ZOOM_MAX = 2.5, ZOOM_STEP = 0.15
-  const zoomIn  = () => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))
-  const zoomOut = () => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))
-  const zoomFit = useCallback(() => {
-    if (!containerRef.current) return
-    const cw = containerRef.current.clientWidth  - 48
-    const ch = containerRef.current.clientHeight - 48
-    setZoom(Math.min(cw / mapaAncho, ch / mapaAlto, 1))
-  }, [mapaAncho, mapaAlto])
-
-  useEffect(() => { if (!loading) setTimeout(zoomFit, 100) }, [loading, zoomFit])
-
-  // ── Carga inicial ─────────────────────────────────────────────────────
-  const cargarMapa = useCallback(async () => {
-    setLoading(true)
-    setHayCambios(false)
-    try {
-      const res = await auth.fetchAuth(`/api/zonas/${zonaId}/mapa`)
-      if (!res.ok) throw new Error()
-      const d = await res.json()
-      setZonaNombre(d.zonaNombre || '')
-      setMapaAncho(d.mapaAncho  || 1200)
-      setMapaAlto(d.mapaAlto    || 700)
-      setImagenFondo(d.planoImagen || null)   // ← campo correcto del backend
-      setEspacios(d.espacios    || [])
-    } catch {
-      showToast('Error cargando mapa', 'error')
-    } finally {
-      setLoading(false)
+    const base = autoForm.reemplazar ? [] : espacios
+    const existentes = base.length
+    const nuevos = []
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const n = existentes + r * cols + c + 1
+        nuevos.push({
+          id: uid(),
+          codigo: `${autoForm.prefijo}${String(n).padStart(2, '0')}`,
+          tipoVehiculo: autoForm.tipo,
+          estado: 'DISPONIBLE',
+          x: snap(mX + c * (ew + eH)),
+          y: snap(mY + r * (eh + eV)),
+          w: ew, h: eh, angulo: ang,
+        })
+      }
     }
-  }, [zonaId])
+    commitChange([...base, ...nuevos])
+    setSelIds(new Set(nuevos.map(e => e.id)))
+    setShowAutoGen(false)
+    showToast(`${nuevos.length} espacios generados`)
+  }
 
-  useEffect(() => { cargarMapa() }, [cargarMapa])
-
-  // ── Guardar en bulk ───────────────────────────────────────────────────
-  // PUT /api/zonas/{id}/mapa — único endpoint de escritura que usa este editor.
-  // Envía imagen + todos los espacios en una sola llamada.
-  const guardarMapa = async () => {
+  // ── Guardar ────────────────────────────────────────────────────────────
+  const guardar = async () => {
     setSaving(true)
     try {
       const payload = {
-        mapaAncho,
-        mapaAlto,
+        mapaAncho, mapaAlto,
         planoImagen: imagenFondo || null,
-        plano: [],   // este editor no gestiona paredes/pasillos
+        plano: [],
         espacios: espacios.map(e => ({
-          // IDs temporales (string "tmp_…") → null para que el back los cree
           id:           typeof e.id === 'string' ? null : e.id,
           codigo:       e.codigo,
           tipoVehiculo: e.tipoVehiculo,
-          x: Number(e.x  || 0),
-          y: Number(e.y  || 0),
-          w: Number(e.w  || 52),
-          h: Number(e.h  || 72),
-          angulo: 0,
+          x: Number(e.x || 0),
+          y: Number(e.y || 0),
+          w: Number(e.w || 52),
+          h: Number(e.h || 72),
+          angulo: Number(e.angulo || 0),
         })),
       }
-
       const res = await auth.fetchAuth(`/api/zonas/${zonaId}/mapa`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.mensaje || 'Error al guardar')
       }
-
       const data = await res.json()
-      // Refrescar con los IDs reales asignados por el back
-      setEspacios(Array.isArray(data.espacios) ? data.espacios : [])
+      const esps = (data.espacios || []).map(e => ({ ...e, angulo: e.angulo || 0 }))
+      setEspacios(esps)
       setImagenFondo(data.planoImagen || null)
       setHayCambios(false)
-      showToast('Mapa guardado correctamente ✓')
+      showToast('Mapa guardado ✓')
     } catch (err) {
       showToast(err.message || 'Error al guardar', 'error')
     } finally {
@@ -249,651 +685,609 @@ export default function OperadorEditorMapa() {
     }
   }
 
-  // ── Coordenadas SVG desde evento de ratón ────────────────────────────
-  const getSVGCoord = useCallback((e) => {
-    if (!svgRef.current) return { x: 0, y: 0 }
-    const rect   = svgRef.current.getBoundingClientRect()
-    const scaleX = mapaAncho / rect.width
-    const scaleY = mapaAlto  / rect.height
-    return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top)  * scaleY,
-    }
-  }, [mapaAncho, mapaAlto])
+  // ── Cursor según herramienta / estado ──────────────────────────────────
+  const cursor = isPanning ? 'grabbing' : tool === 'pan' ? 'grab' : tool === 'draw' ? 'crosshair' : 'default'
 
-  // ── Drag & resize (solo estado local, sin PATCH por acción) ──────────
-  useEffect(() => {
-    const onMove = (e) => {
-      if (!dragRef.current || !svgRef.current) return
-      const { type, id, handle, startX, startY, origX, origY, origW, origH } = dragRef.current
-      const pt = getSVGCoord(e)
-      const dx = pt.x - startX
-      const dy = pt.y - startY
-
-      setEspacios(prev => prev.map(esp => {
-        if (esp.id !== id) return esp
-        if (type === 'move') {
-          return { ...esp, x: snapV(origX + dx), y: snapV(origY + dy) }
-        }
-        if (type === 'resize') {
-          let { x, y, w, h } = { x: origX, y: origY, w: origW, h: origH }
-          const MIN = 20
-          switch (handle) {
-            case 'se': w = Math.max(MIN, snapV(origW + dx)); h = Math.max(MIN, snapV(origH + dy)); break
-            case 'sw': { const nw = Math.max(MIN, snapV(origW - dx)); x = snapV(origX + origW - nw); w = nw; h = Math.max(MIN, snapV(origH + dy)); break }
-            case 'ne': w = Math.max(MIN, snapV(origW + dx)); { const nh = Math.max(MIN, snapV(origH - dy)); y = snapV(origY + origH - nh); h = nh; break }
-            case 'nw': { const nw2 = Math.max(MIN, snapV(origW - dx)); x = snapV(origX + origW - nw2); w = nw2; const nh2 = Math.max(MIN, snapV(origH - dy)); y = snapV(origY + origH - nh2); h = nh2; break }
-            case 'e':  w = Math.max(MIN, snapV(origW + dx)); break
-            case 's':  h = Math.max(MIN, snapV(origH + dy)); break
-            default: break
-          }
-          return { ...esp, x, y, w, h }
-        }
-        return esp
-      }))
-    }
-
-    // Al soltar el ratón simplemente marcamos cambios — NO llamamos al back
-    const onUp = () => {
-      if (!dragRef.current) return
-      dragRef.current = null
-      markDirty()
-    }
-
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup',   onUp)
-    return () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup',   onUp)
-    }
-  }, [getSVGCoord])
-
-  const startDrag = (e, esp, type, handle = null) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const pt = getSVGCoord(e)
-    dragRef.current = {
-      type, id: esp.id, handle,
-      startX: pt.x, startY: pt.y,
-      origX: esp.x || 0, origY: esp.y || 0,
-      origW: esp.w || 52, origH: esp.h || 72,
-    }
-    setSelId(esp.id)
-  }
-
-  // ── Rotar 90° (local) ────────────────────────────────────────────────
-  const rotarEspacio = (esp) => {
-    const cx = (esp.x || 0) + (esp.w || 52) / 2
-    const cy = (esp.y || 0) + (esp.h || 72) / 2
-    const nw = esp.h || 72
-    const nh = esp.w || 52
-    setEspacios(prev => prev.map(e => e.id === esp.id
-      ? { ...e, x: snapV(cx - nw / 2), y: snapV(cy - nh / 2), w: nw, h: nh }
-      : e
-    ))
-    markDirty()
-  }
-
-  // ── Actualizar dimensión desde inputs (local) ─────────────────────────
-  const actualizarDimension = (esp, campo, valor) => {
-    const num = parseFloat(valor)
-    if (isNaN(num) || num < 10) return
-    const v = snapV(num)
-    setEspacios(prev => prev.map(e => e.id === esp.id ? { ...e, [campo]: v } : e))
-    markDirty()
-  }
-
-  // ── Upload imagen (local — se enviará al guardar) ─────────────────────
-  const handleImageUpload = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const base64 = ev.target.result
-      const img = new window.Image()
-      img.onload = () => {
-        const ratio   = img.naturalHeight / img.naturalWidth
-        const newAlto = Math.round(mapaAncho * ratio)
-        setImagenFondo(base64)
-        setMapaAlto(newAlto)
-        markDirty()
-        showToast('Imagen lista — pulsa Guardar para persistirla')
-      }
-      img.src = base64
-    }
-    reader.readAsDataURL(file)
-    e.target.value = ''
-  }
-
-  const quitarImagen = () => {
-    setImagenFondo(null)
-    markDirty()
-    showToast('Imagen eliminada — pulsa Guardar para confirmar')
-  }
-
-  // ── Auto-generar espacios (algoritmo cliente) ─────────────────────────
-  const handleAutoGen = () => {
-    const margenX      = parseFloat(autoForm.margenX)      || 30
-    const margenY      = parseFloat(autoForm.margenY)      || 30
-    const espaciadoH   = parseFloat(autoForm.espaciadoH)   || 12
-    const espaciadoV   = parseFloat(autoForm.espaciadoV)   || 12
-    const espacioAncho = parseFloat(autoForm.espacioAncho) || 52
-    const espacioAlto  = parseFloat(autoForm.espacioAlto)  || 72
-
-    // Calcular columnas y filas si no se especifican
-    const cols = autoForm.columnas
-      ? parseInt(autoForm.columnas)
-      : Math.max(1, Math.floor((mapaAncho - 2 * margenX + espaciadoH) / (espacioAncho + espaciadoH)))
-    const rows = autoForm.filas
-      ? parseInt(autoForm.filas)
-      : Math.max(1, Math.floor((mapaAlto  - 2 * margenY + espaciadoV) / (espacioAlto  + espaciadoV)))
-
-    // Eliminar espacios sin reservas activas si se pidió reemplazar
-    const base = autoForm.reemplazar
-      ? espacios.filter(e => e.estado === 'RESERVADO' || e.estado === 'OCUPADO')
-      : [...espacios]
-
-    const nuevos = []
-    let contador = (base.length || 0) + 1
-
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const x = snapV(margenX + c * (espacioAncho + espaciadoH))
-        const y = snapV(margenY + r * (espacioAlto  + espaciadoV))
-        const codigo = `${autoForm.tipoVehiculo[0]}${String(contador).padStart(2, '0')}`
-        nuevos.push({
-          id:           `tmp_${Date.now()}_${r}_${c}`,
-          codigo,
-          tipoVehiculo: autoForm.tipoVehiculo,
-          estado:       'DISPONIBLE',
-          x, y,
-          w: espacioAncho,
-          h: espacioAlto,
-        })
-        contador++
-      }
-    }
-
-    setEspacios([...base, ...nuevos])
-    setSelId(null)
-    setMAutoGen(false)
-    markDirty()
-    showToast(`${nuevos.length} espacios generados — pulsa Guardar`)
-  }
-
-  // ── Añadir espacio individual (local con ID temporal) ─────────────────
-  const handleAddEsp = () => {
-    const codigo = addForm.codigo.trim().toUpperCase()
-    if (!codigo) return
-    const nuevo = {
-      id:           `tmp_${Date.now()}`,
-      codigo,
-      tipoVehiculo: addForm.tipoVehiculo,
-      estado:       'DISPONIBLE',
-      x: 80, y: 80, w: 52, h: 72,
-    }
-    setEspacios(prev => [...prev, nuevo])
-    setSelId(nuevo.id)
-    setMAddEsp(false)
-    setAddForm({ codigo: '', tipoVehiculo: 'AUTO' })
-    markDirty()
-    showToast('Espacio añadido — arrástralo a su posición y pulsa Guardar')
-  }
-
-  // ── Eliminar espacio (local) ──────────────────────────────────────────
-  const handleDelete = (id) => {
-    const esp = espacios.find(e => e.id === id)
-    if (!esp) return
-    if (!window.confirm(`¿Eliminar espacio "${esp.codigo}"?\nSe aplicará al guardar.`)) return
-    setEspacios(prev => prev.filter(e => e.id !== id))
-    setSelId(null)
-    markDirty()
-  }
-
-  // ── Ver QR (generado en cliente con codigoQr del espacio) ─────────────
-  // El back devuelve `codigoQr` (UUID) en cada EspacioMapaDto.
-  // Lo usamos para construir la URL del QR sin llamada extra.
-  const handleVerQr = (esp) => {
-    if (!esp.codigoQr) {
-      showToast('Este espacio aún no tiene QR asignado (guarda primero)', 'error')
-      return
-    }
-    setMQr(esp)
-  }
-
-  const qrImageUrl = (esp) =>
-    `https://quickchart.io/qr?text=${encodeURIComponent(esp.codigoQr)}&size=200&dark=3de8c8&light=0d0e1f&margin=1`
-
-  const downloadQr = (esp) => {
-    if (!esp?.codigoQr) return
-    const a = document.createElement('a')
-    a.href = qrImageUrl(esp)
-    a.download = `qr-espacio-${esp.codigo}.png`
-    a.click()
-  }
-
-  // ── Estado derivado ────────────────────────────────────────────────────
-  const selEsp    = espacios.find(e => e.id === selId)
-  const HANDLE_SZ = 8
-  const HANDLES   = selEsp ? [
-    ['nw', 0,              0,               'nw-resize'],
-    ['ne', selEsp.w || 52, 0,               'ne-resize'],
-    ['sw', 0,              selEsp.h || 72,  'sw-resize'],
-    ['se', selEsp.w || 52, selEsp.h || 72,  'se-resize'],
-    ['e',  selEsp.w || 52, (selEsp.h||72)/2,'e-resize' ],
-    ['s',  (selEsp.w||52)/2, selEsp.h || 72,'s-resize' ],
-  ] : []
-
-  // ── Render ─────────────────────────────────────────────────────────────
-  if (loading) return <LoadingScreen />
+  if (loading) return <Loading />
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:C.bg, overflow:'hidden', fontFamily:FF }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: C.bg, overflow: 'hidden', fontFamily: FF }}>
 
       {/* ── Toast ── */}
       {toast && (
         <div style={{
-          position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)',
-          zIndex:900, padding:'11px 22px', borderRadius:12, fontFamily:FF,
-          fontSize:13, fontWeight:600, pointerEvents:'none',
-          background: toast.tipo === 'error' ? '#ff4d6d' : '#3de8c8',
+          position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 9999, padding: '11px 24px', borderRadius: 12, fontFamily: FF,
+          fontSize: 13, fontWeight: 600, pointerEvents: 'none',
+          background: toast.tipo === 'error' ? C.danger : C.teal,
           color: toast.tipo === 'error' ? '#fff' : '#06060f',
-          boxShadow:'0 8px 32px #00000040',
+          boxShadow: '0 8px 32px #00000060',
         }}>
           {toast.msg}
         </div>
       )}
 
-      {/* ── Header ── */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 18px', background:C.surface, borderBottom:`1px solid ${C.border}`, flexShrink:0, gap:12 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <button
-            onClick={() => {
-              if (hayCambios && !window.confirm('Tienes cambios sin guardar. ¿Salir de todos modos?')) return
-              navigate(-1)
-            }}
-            style={{ width:32, height:32, borderRadius:8, background:C.s2, border:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}
-          >
-            <ArrowLeft size={15} color={C.muted}/>
-          </button>
-          <div>
-            <p style={{ fontSize:10, color:C.muted }}>Editor de Zona</p>
-            <p style={{ fontSize:15, fontWeight:800, color:C.text }}>{zonaNombre || `Zona ${zonaId}`}</p>
-          </div>
+      {/* ══════════════════════════════════════════════════════════════
+          HEADER
+      ══════════════════════════════════════════════════════════════ */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '8px 14px', background: C.surface,
+        borderBottom: `1px solid ${C.border}`, flexShrink: 0, flexWrap: 'wrap',
+      }}>
+        {/* Volver */}
+        <button
+          onClick={() => {
+            if (hayCambios && !window.confirm('Tienes cambios sin guardar. ¿Salir?')) return
+            navigate('/operador/zonas')
+          }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 13, fontFamily: FF, padding: '4px 8px', borderRadius: 8 }}
+        >
+          <ArrowLeft size={16} /> Zonas
+        </button>
+
+        <div style={{ width: 1, height: 20, background: C.border }} />
+
+        {/* Nombre zona */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: .5 }}>EDITOR DE ZONA</span>
+          <span style={{ fontSize: 14, color: C.text, fontWeight: 700 }}>{zonaNombre}</span>
         </div>
 
-        {/* Centro: zoom */}
-        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-          <button onClick={zoomOut} style={{ width:30, height:30, borderRadius:7, background:C.s2, border:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-            <ZoomOut size={14} color={C.muted}/>
-          </button>
-          <button onClick={zoomFit} style={{ padding:'4px 10px', borderRadius:7, background:C.s2, border:`1px solid ${C.border}`, color:C.muted, fontSize:12, fontWeight:600, cursor:'pointer', minWidth:52, textAlign:'center', fontFamily:FF }}>
+        <div style={{ flex: 1 }} />
+
+        {/* ── Toolbar herramientas ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: C.s2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '4px 6px' }}>
+          <TB active={tool === 'select'} onClick={() => setTool('select')} title="Seleccionar (V)">
+            <MousePointer2 size={16} />
+          </TB>
+          <TB active={tool === 'pan'} onClick={() => setTool(t => t === 'pan' ? 'select' : 'pan')} title="Mover vista (Espacio)">
+            <Move size={16} />
+          </TB>
+          <Sep />
+          <TB active={false} onClick={undo} title="Deshacer (Ctrl+Z)" danger={false}>
+            <Undo2 size={16} style={{ opacity: canUndo ? 1 : .35 }} />
+          </TB>
+          <TB active={false} onClick={redo} title="Rehacer (Ctrl+Y)">
+            <Redo2 size={16} style={{ opacity: canRedo ? 1 : .35 }} />
+          </TB>
+          <Sep />
+          <TB active={false} onClick={duplicarSel} title="Duplicar (Ctrl+D)">
+            <Copy size={16} style={{ opacity: selIds.size > 0 ? 1 : .35 }} />
+          </TB>
+          <TB active={false} onClick={eliminarSel} title="Eliminar (Supr)" danger>
+            <Trash2 size={16} style={{ opacity: selIds.size > 0 ? 1 : .35 }} />
+          </TB>
+          <Sep />
+          <TB active={false} onClick={() => rotar(-90)} title="Rotar -90°">
+            <RotateCcw size={16} style={{ opacity: selIds.size > 0 ? 1 : .35 }} />
+          </TB>
+          <TB active={false} onClick={() => rotar(90)} title="Rotar +90°">
+            <RotateCw size={16} style={{ opacity: selIds.size > 0 ? 1 : .35 }} />
+          </TB>
+        </div>
+
+        {/* ── Align toolbar (solo con multi-selección) ── */}
+        {selArr.length >= 2 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: C.s2, border: `1px solid ${C.accent}40`, borderRadius: 10, padding: '4px 6px' }}>
+            <TB onClick={() => alinear('left')} title="Alinear izquierda"><AlignLeft size={16} /></TB>
+            <TB onClick={() => alinear('centerH')} title="Centrar horizontal"><AlignCenterHorizontal size={16} /></TB>
+            <TB onClick={() => alinear('right')} title="Alinear derecha"><AlignRight size={16} /></TB>
+            <Sep />
+            <TB onClick={() => alinear('top')} title="Alinear arriba"><AlignStartHorizontal size={16} /></TB>
+            <TB onClick={() => alinear('centerV')} title="Centrar vertical"><AlignCenterVertical size={16} /></TB>
+            <TB onClick={() => alinear('bottom')} title="Alinear abajo"><AlignEndHorizontal size={16} /></TB>
+            {selArr.length >= 3 && (
+              <>
+                <Sep />
+                <TB onClick={() => distribuir('h')} title="Distribuir horizontal"><AlignHorizontalDistributeCenter size={16} /></TB>
+                <TB onClick={() => distribuir('v')} title="Distribuir vertical">
+                  <AlignVerticalDistributeCenter size={16} />
+                </TB>
+              </>
+            )}
+          </div>
+        )}
+
+        <div style={{ flex: 1 }} />
+
+        {/* Zoom */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <TB onClick={() => setZoom(z => clamp(z / 1.25, .15, 5))} title="Alejar"><ZoomOut size={16} /></TB>
+          <button
+            onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }}
+            style={{ fontSize: 12, fontWeight: 700, color: C.muted, background: C.s2, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: FF, minWidth: 54, textAlign: 'center' }}
+          >
             {Math.round(zoom * 100)}%
           </button>
-          <button onClick={zoomIn} style={{ width:30, height:30, borderRadius:7, background:C.s2, border:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-            <ZoomIn size={14} color={C.muted}/>
-          </button>
+          <TB onClick={() => setZoom(z => clamp(z * 1.25, .15, 5))} title="Acercar"><ZoomIn size={16} /></TB>
+          <TB onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }} title="Restablecer vista"><Maximize2 size={16} /></TB>
         </div>
 
-        {/* Derecha: indicadores + guardar */}
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:5, background:imagenFondo?'#3de8c810':'transparent', border:imagenFondo?'1px solid #3de8c825':'none', borderRadius:8, padding:'4px 10px' }}>
-            {imagenFondo && <Image size={12} color="#3de8c8"/>}
-            <span style={{ fontSize:11, fontWeight:600, color:imagenFondo?'#3de8c8':C.muted }}>{espacios.length} espacios</span>
-          </div>
-
-          {hayCambios && (
-            <span style={{ fontSize:11, color:'#ffaa00', fontWeight:600, background:'#ffaa0012', border:'1px solid #ffaa0025', borderRadius:8, padding:'4px 10px' }}>
-              Cambios sin guardar
-            </span>
-          )}
-
-          <button onClick={cargarMapa} title="Recargar desde servidor" style={{ width:30, height:30, borderRadius:8, background:C.s2, border:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-            <RefreshCw size={13} color={C.muted}/>
-          </button>
-
-          {/* Botón principal de guardar */}
-          <button
-            onClick={guardarMapa}
-            disabled={saving || !hayCambios}
-            style={{
-              display:'flex', alignItems:'center', gap:7,
-              padding:'8px 18px', borderRadius:9, border:'none',
-              background: (saving || !hayCambios) ? C.border : GRAD,
-              color:'#fff', fontSize:13, fontWeight:700,
-              cursor: (saving || !hayCambios) ? 'default' : 'pointer',
-              opacity: (saving || !hayCambios) ? 0.6 : 1,
-              fontFamily:FF, transition:'opacity .15s',
-            }}
-          >
-            <Save size={14}/>
-            {saving ? 'Guardando…' : 'Guardar'}
-          </button>
-        </div>
+        {/* Guardar */}
+        <button
+          onClick={guardar}
+          disabled={saving}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 18px', borderRadius: 10,
+            background: hayCambios ? GRAD : C.s2,
+            border: hayCambios ? 'none' : `1px solid ${C.border}`,
+            color: hayCambios ? '#fff' : C.muted,
+            fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer',
+            fontFamily: FF, transition: 'all .2s',
+          }}
+        >
+          <Save size={15} /> {saving ? 'Guardando…' : 'Guardar'}
+        </button>
       </div>
 
-      {/* ── Body ── */}
-      <div style={{ display:'flex', flex:1, minHeight:0 }}>
+      {/* ══════════════════════════════════════════════════════════════
+          MAIN LAYOUT
+      ══════════════════════════════════════════════════════════════ */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
 
-        {/* ── Toolbar izquierdo ── */}
-        <div style={{ width:188, background:C.surface, borderRight:`1px solid ${C.border}`, display:'flex', flexDirection:'column', padding:'14px 10px', flexShrink:0, overflowY:'auto', gap:4 }}>
+        {/* ── Panel Izquierdo ── */}
+        <div style={{
+          width: 220, background: C.surface, borderRight: `1px solid ${C.border}`,
+          display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto',
+        }}>
+          {/* Imagen de fondo */}
+          <Section title="IMAGEN DE FONDO" icon={<Layers size={12} />}>
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
+              background: C.s2, border: `1px dashed ${C.border}`,
+              fontSize: 12, color: C.muted, fontFamily: FF, fontWeight: 600,
+            }}>
+              <Upload size={13} /> {imagenFondo ? 'Cambiar plano' : 'Subir plano'}
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageUpload} />
+            </label>
+            {imagenFondo && (
+              <button
+                onClick={() => { setImagenFondo(null); setHayCambios(true) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, background: C.danger + '14', border: `1px solid ${C.danger}30`, color: C.danger, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: FF, marginTop: 6, width: '100%' }}
+              >
+                <ImageOff size={13} /> Quitar imagen
+              </button>
+            )}
+          </Section>
 
-          <SectionLabel>Imagen de fondo</SectionLabel>
-          <label style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 12px', borderRadius:9, background:imagenFondo?'#3de8c810':C.s2, border:`1px solid ${imagenFondo?'#3de8c830':C.border}`, cursor:'pointer', fontSize:12, fontWeight:600, color:imagenFondo?'#3de8c8':C.muted }}>
-            <Upload size={13}/>
-            {imagenFondo ? 'Cambiar plano' : 'Subir plano'}
-            <input type="file" accept="image/*" style={{ display:'none' }} onChange={handleImageUpload}/>
-          </label>
-          {imagenFondo && (
-            <button onClick={quitarImagen} style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', borderRadius:9, background:'#ff4d6d0c', border:'1px solid #ff4d6d25', cursor:'pointer', fontSize:11, fontWeight:600, color:'#ff4d6d' }}>
-              <X size={11}/> Quitar imagen
-            </button>
-          )}
-
-          <div style={{ borderTop:`1px solid ${C.border}`, marginTop:10, paddingTop:10 }}>
-            <SectionLabel>Espacios</SectionLabel>
-            <button onClick={() => setMAutoGen(true)} style={{ width:'100%', display:'flex', alignItems:'center', gap:7, padding:'9px 12px', borderRadius:9, background:GRAD, border:'none', cursor:'pointer', fontSize:12, fontWeight:700, color:'#fff', marginBottom:5 }}>
-              <Grid size={13}/> Auto-generar
-            </button>
+          {/* Auto-generar */}
+          <Section title="ESPACIOS" icon={<LayoutGrid size={12} />}>
             <button
-              onClick={() => { setMAddEsp(true); setAddForm({ codigo:'', tipoVehiculo:'AUTO' }) }}
-              style={{ width:'100%', display:'flex', alignItems:'center', gap:7, padding:'9px 12px', borderRadius:9, background:C.s2, border:`1px solid ${C.border}`, cursor:'pointer', fontSize:12, fontWeight:600, color:C.muted }}
+              onClick={() => setShowAutoGen(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%', padding: '8px 10px', borderRadius: 8,
+                background: GRAD, border: 'none', color: '#fff',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FF,
+              }}
             >
-              <Plus size={13}/> Añadir espacio
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Zap size={13} /> Auto-generar
+              </span>
+              {showAutoGen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
-          </div>
 
-          <div style={{ borderTop:`1px solid ${C.border}`, marginTop:10, paddingTop:10 }}>
-            <SectionLabel>Tipos</SectionLabel>
-            {Object.entries(TV_COLOR).map(([tipo, color]) => (
-              <div key={tipo} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:5 }}>
-                <div style={{ width:10, height:10, borderRadius:3, background:color, flexShrink:0 }}/>
-                <span style={{ fontSize:10, color:C.muted }}>{tipo}</span>
+            {showAutoGen && (
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <NumInput label="Cols" value={autoForm.columnas} onChange={v => setAutoForm(f => ({ ...f, columnas: v }))} min={1} />
+                  <NumInput label="Filas" value={autoForm.filas} onChange={v => setAutoForm(f => ({ ...f, filas: v }))} min={1} />
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <NumInput label="Ancho px" value={autoForm.espacioAncho} onChange={v => setAutoForm(f => ({ ...f, espacioAncho: v }))} min={20} />
+                  <NumInput label="Alto px" value={autoForm.espacioAlto} onChange={v => setAutoForm(f => ({ ...f, espacioAlto: v }))} min={20} />
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <NumInput label="Sep H" value={autoForm.espaciadoH} onChange={v => setAutoForm(f => ({ ...f, espaciadoH: v }))} min={0} />
+                  <NumInput label="Sep V" value={autoForm.espaciadoV} onChange={v => setAutoForm(f => ({ ...f, espaciadoV: v }))} min={0} />
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <NumInput label="Margen X" value={autoForm.margenX} onChange={v => setAutoForm(f => ({ ...f, margenX: v }))} min={0} />
+                  <NumInput label="Margen Y" value={autoForm.margenY} onChange={v => setAutoForm(f => ({ ...f, margenY: v }))} min={0} />
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <NumInput label="Ángulo °" value={autoForm.angulo} onChange={v => setAutoForm(f => ({ ...f, angulo: v }))} min={0} max={359} />
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <label style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: .5 }}>PREFIJO</label>
+                    <input
+                      value={autoForm.prefijo}
+                      onChange={e => setAutoForm(f => ({ ...f, prefijo: e.target.value }))}
+                      maxLength={3}
+                      style={{ padding: '5px 8px', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 12, fontFamily: FF, outline: 'none' }}
+                    />
+                  </div>
+                </div>
+                {/* Tipo */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <label style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: .5 }}>TIPO VEHÍCULO</label>
+                  <select
+                    value={autoForm.tipo}
+                    onChange={e => setAutoForm(f => ({ ...f, tipo: e.target.value }))}
+                    style={{ padding: '5px 8px', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 12, fontFamily: FF, outline: 'none' }}
+                  >
+                    {TIPOS.map(t => <option key={t} value={t}>{TV_ICON[t]} {t}</option>)}
+                  </select>
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.muted, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={autoForm.reemplazar} onChange={e => setAutoForm(f => ({ ...f, reemplazar: e.target.checked }))} />
+                  Reemplazar existentes
+                </label>
+                <button
+                  onClick={handleAutoGen}
+                  style={{ padding: '8px', borderRadius: 8, background: GRAD, border: 'none', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FF }}
+                >
+                  <Plus size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                  Generar espacios
+                </button>
+              </div>
+            )}
+
+            {/* Stats */}
+            <div style={{ marginTop: 10, padding: '8px 10px', background: C.s2, borderRadius: 8, border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 11, color: C.muted, fontFamily: FF, marginBottom: 4 }}>Total espacios</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: C.text, fontFamily: FF }}>{espacios.length}</div>
+              {selIds.size > 0 && (
+                <div style={{ fontSize: 11, color: C.accent, fontFamily: FF, marginTop: 2 }}>
+                  {selIds.size} seleccionado{selIds.size > 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
+          </Section>
+
+          {/* Tipos leyenda */}
+          <Section title="TIPOS" icon={<Settings2 size={12} />}>
+            {TIPOS.map(t => (
+              <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <div style={{ width: 12, height: 12, borderRadius: 3, background: TV_COLOR[t] + '30', border: `1.5px solid ${TV_COLOR[t]}` }} />
+                <span style={{ fontSize: 11, color: C.muted, fontFamily: FF }}>{TV_ICON[t]} {t}</span>
               </div>
             ))}
-          </div>
+          </Section>
 
-          <div style={{ borderTop:`1px solid ${C.border}`, marginTop:10, paddingTop:10 }}>
-            <SectionLabel>Cómo usar</SectionLabel>
+          {/* Atajos de teclado */}
+          <Section title="ATAJOS" icon={<Settings2 size={12} />} collapsible defaultOpen={false}>
             {[
-              ['🖼️', 'Sube el plano como imagen de fondo'],
-              ['⚡', '"Auto-generar" crea una grilla de espacios'],
-              ['↖',  'Arrastra los bloques para reposicionarlos'],
-              ['⬡',  'Arrastra las esquinas para redimensionar'],
-              ['↻',  'Usa el botón "Girar 90°" para rotar un espacio'],
-              ['💾', 'Pulsa "Guardar" para persistir todos los cambios'],
-            ].map(([icon, text]) => (
-              <div key={text} style={{ display:'flex', gap:6, marginBottom:7 }}>
-                <span style={{ fontSize:12, flexShrink:0 }}>{icon}</span>
-                <span style={{ fontSize:10, color:C.muted, lineHeight:1.5 }}>{text}</span>
+              ['V', 'Seleccionar'],
+              ['Espacio', 'Mover vista'],
+              ['Ctrl+Z', 'Deshacer'],
+              ['Ctrl+Y', 'Rehacer'],
+              ['Ctrl+D', 'Duplicar'],
+              ['Ctrl+A', 'Sel. todos'],
+              ['Supr', 'Eliminar'],
+              ['Shift+drag', 'Multiselección'],
+              ['Ctrl+rueda', 'Zoom'],
+              ['Shift+rotar', 'Snap 15°'],
+            ].map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                <span style={{ fontSize: 10, color: C.muted, fontFamily: FF }}>{v}</span>
+                <code style={{ fontSize: 10, color: C.accent, background: C.s2, border: `1px solid ${C.border}`, borderRadius: 4, padding: '1px 5px', fontFamily: 'monospace' }}>{k}</code>
               </div>
             ))}
-          </div>
+          </Section>
         </div>
 
         {/* ── Canvas ── */}
         <div
           ref={containerRef}
-          style={{ flex:1, overflow:'auto', background:'#03030a', position:'relative', cursor:'default' }}
-          onClick={() => setSelId(null)}
+          onWheel={onWheel}
+          style={{ flex: 1, overflow: 'hidden', position: 'relative', background: '#0a0b1a', cursor }}
         >
-          <div style={{ display:'inline-block', padding:24, minWidth:'100%', minHeight:'100%', boxSizing:'border-box' }}>
-            <div style={{ position:'relative', width:mapaAncho, height:mapaAlto, transform:`scale(${zoom})`, transformOrigin:'top left' }}>
+          {/* Dot grid background */}
+          <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+            <defs>
+              <pattern id="dotgrid" x={pan.x % (GRID * zoom)} y={pan.y % (GRID * zoom)} width={GRID * zoom} height={GRID * zoom} patternUnits="userSpaceOnUse">
+                <circle cx={GRID * zoom / 2} cy={GRID * zoom / 2} r={.8} fill={C.border} opacity=".6" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#dotgrid)" />
+          </svg>
 
-              {/* Imagen de fondo */}
-              {imagenFondo && (
-                <img src={imagenFondo} alt="Plano" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'fill', pointerEvents:'none', borderRadius:4 }}/>
-              )}
+          {/* Canvas SVG */}
+          <svg
+            ref={svgRef}
+            style={{
+              position: 'absolute',
+              left: pan.x, top: pan.y,
+              width: mapaAncho * zoom,
+              height: mapaAlto * zoom,
+              display: 'block',
+              borderRadius: 6,
+              boxShadow: '0 0 0 1px rgba(255,255,255,.06), 0 20px 60px rgba(0,0,0,.6)',
+              cursor,
+            }}
+            viewBox={`0 0 ${mapaAncho} ${mapaAlto}`}
+            onMouseDown={onMouseDown}
+          >
+            {/* Fondo del canvas */}
+            <rect x={0} y={0} width={mapaAncho} height={mapaAlto} fill={C.surface} />
 
-              {/* Cuadrícula si no hay imagen */}
-              {!imagenFondo && (
-                <div style={{ position:'absolute', inset:0, backgroundImage:`radial-gradient(circle, ${C.border} 1px, transparent 1px)`, backgroundSize:'40px 40px', opacity:0.4, borderRadius:8, border:`1px solid ${C.border}` }}/>
-              )}
-
-              {/* SVG interactivo */}
-              <svg
-                ref={svgRef}
-                viewBox={`0 0 ${mapaAncho} ${mapaAlto}`}
-                style={{ position:'absolute', inset:0, width:'100%', height:'100%', userSelect:'none' }}
-              >
-                {espacios.map(esp => {
-                  const x     = esp.x || 0
-                  const y     = esp.y || 0
-                  const w     = esp.w || 52
-                  const h     = esp.h || 72
-                  const isSel = esp.id === selId
-                  const color = TV_COLOR[esp.tipoVehiculo]   || C.accent
-                  const stCol = ESTADO_COLOR[esp.estado]      || color
-                  const isTmp = typeof esp.id === 'string'
-                  const fs    = Math.min(w, h) < 44 ? 8 : 10
-
-                  return (
-                    <g key={esp.id}>
-                      <rect x={x+3} y={y+3} width={w-4} height={h-4} rx={7} fill="#000" opacity={0.25}/>
-                      <rect
-                        x={x+1} y={y+1} width={w-2} height={h-2} rx={7}
-                        fill={color + '1e'}
-                        stroke={isSel ? '#ffffff' : (isTmp ? '#ffaa00' : color)}
-                        strokeWidth={isSel ? 2.5 : 1.5}
-                        strokeDasharray={isTmp ? '4 3' : 'none'}
-                        style={{ cursor:'grab' }}
-                        onMouseDown={ev => startDrag(ev, esp, 'move')}
-                        onClick={ev => { ev.stopPropagation(); setSelId(esp.id) }}
-                      />
-                      {/* Punto de estado */}
-                      <circle cx={x+w-9} cy={y+9} r={4} fill={isTmp ? '#ffaa00' : stCol} style={{ pointerEvents:'none' }}/>
-                      {/* Código */}
-                      <text x={x+w/2} y={y+h/2-4} textAnchor="middle" fontSize={fs} fontWeight={700} fill={color} fontFamily={FF} pointerEvents="none">
-                        {esp.codigo}
-                      </text>
-                      <text x={x+w/2} y={y+h/2+fs+1} textAnchor="middle" fontSize={fs-2} fill={color+'99'} fontFamily={FF} pointerEvents="none">
-                        {(esp.tipoVehiculo||'').slice(0,4)}
-                      </text>
-                      {/* Handles de resize */}
-                      {isSel && HANDLES.map(([handle, ox, oy, cur]) => (
-                        <rect
-                          key={handle}
-                          x={x + ox - HANDLE_SZ/2} y={y + oy - HANDLE_SZ/2}
-                          width={HANDLE_SZ} height={HANDLE_SZ} rx={2}
-                          fill="#fff" stroke={color} strokeWidth={1.5}
-                          style={{ cursor:cur }}
-                          onMouseDown={ev => startDrag(ev, esp, 'resize', handle)}
-                        />
-                      ))}
-                    </g>
-                  )
-                })}
-
-                {/* Placeholder vacío */}
-                {espacios.length === 0 && (
-                  <text x={mapaAncho/2} y={mapaAlto/2} textAnchor="middle" fontSize={14} fill={C.muted} fontFamily={FF} pointerEvents="none">
-                    {imagenFondo ? 'Auto-genera o añade espacios individualmente' : 'Sube una imagen de plano para comenzar'}
-                  </text>
-                )}
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Panel derecho: espacio seleccionado ── */}
-        {selEsp && (
-          <div style={{ width:230, background:C.surface, borderLeft:`1px solid ${C.border}`, padding:16, flexShrink:0, display:'flex', flexDirection:'column', gap:12, overflowY:'auto' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <p style={{ fontSize:13, fontWeight:700, color:C.text }}>Espacio</p>
-              <button onClick={() => setSelId(null)} style={{ background:'none', border:'none', cursor:'pointer', color:C.muted }}>
-                <X size={15}/>
-              </button>
-            </div>
-
-            {/* Código */}
-            <div style={{ background:C.s2, borderRadius:10, padding:'12px 14px' }}>
-              <p style={{ fontSize:10, color:C.muted, marginBottom:2 }}>Código</p>
-              <p style={{ fontSize:24, fontWeight:800, color:C.text }}>{selEsp.codigo}</p>
-            </div>
-
-            {/* Tipo */}
-            <div>
-              <p style={{ fontSize:10, color:C.muted, marginBottom:5 }}>Tipo de vehículo</p>
-              <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:(TV_COLOR[selEsp.tipoVehiculo]||C.accent)+'18', border:`1px solid ${(TV_COLOR[selEsp.tipoVehiculo]||C.accent)}30`, borderRadius:8, padding:'4px 10px' }}>
-                <div style={{ width:8, height:8, borderRadius:2, background:TV_COLOR[selEsp.tipoVehiculo]||C.accent }}/>
-                <span style={{ fontSize:12, fontWeight:700, color:TV_COLOR[selEsp.tipoVehiculo]||C.accent, fontFamily:FF }}>{selEsp.tipoVehiculo}</span>
-              </div>
-            </div>
-
-            {/* Aviso de espacio nuevo (sin persistir) */}
-            {typeof selEsp.id === 'string' && (
-              <div style={{ display:'flex', gap:7, background:'#ffaa0010', border:'1px solid #ffaa0025', borderRadius:9, padding:'9px 11px' }}>
-                <AlertTriangle size={13} color="#ffaa00" style={{ flexShrink:0, marginTop:1 }}/>
-                <p style={{ fontSize:11, color:'#ffaa00', lineHeight:1.5 }}>Sin guardar — pulsa el botón Guardar del header para persistirlo.</p>
-              </div>
+            {/* Imagen de fondo */}
+            {imagenFondo && (
+              <image href={imagenFondo} x={0} y={0} width={mapaAncho} height={mapaAlto} preserveAspectRatio="xMidYMid meet" opacity={0.7} />
             )}
 
-            {/* Dimensiones */}
-            <div>
-              <p style={{ fontSize:10, color:C.muted, marginBottom:8, fontWeight:700 }}>Dimensiones</p>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                {[['x','X'],['y','Y'],['w','Ancho'],['h','Alto']].map(([k,label]) => (
-                  <div key={k}>
-                    <p style={{ fontSize:9, color:C.muted, marginBottom:3 }}>{label}</p>
-                    <input
-                      type="number"
-                      value={Math.round(selEsp[k]||0)}
-                      onChange={e => actualizarDimension(selEsp, k, e.target.value)}
-                      style={{ ...inputSt, padding:'6px 8px', fontSize:12 }}
+            {/* Líneas guía de snap */}
+            {guides.map((g, i) =>
+              g.type === 'v'
+                ? <line key={i} x1={g.pos} y1={0} x2={g.pos} y2={mapaAlto} stroke="#5b7eff" strokeWidth={.8} strokeDasharray="4 3" opacity={.7} />
+                : <line key={i} x1={0} y1={g.pos} x2={mapaAncho} y2={g.pos} stroke="#5b7eff" strokeWidth={.8} strokeDasharray="4 3" opacity={.7} />
+            )}
+
+            {/* Espacios */}
+            {espacios.map(esp => {
+              const isSel    = selIds.has(esp.id)
+              const color    = TV_COLOR[esp.tipoVehiculo] || C.accent
+              const cx       = esp.x + esp.w / 2
+              const cy       = esp.y + esp.h / 2
+              const ang      = esp.angulo || 0
+              const fs       = Math.min(esp.w, esp.h) < 40 ? 7 : 10
+              const icon     = TV_ICON[esp.tipoVehiculo] || '🅿'
+
+              // Handles de resize (en espacio local antes de rotar)
+              const handles = [
+                ['n',  cx,          esp.y,          'ns-resize'],
+                ['s',  cx,          esp.y + esp.h,  'ns-resize'],
+                ['w',  esp.x,       cy,             'ew-resize'],
+                ['e',  esp.x+esp.w, cy,             'ew-resize'],
+                ['nw', esp.x,       esp.y,          'nwse-resize'],
+                ['ne', esp.x+esp.w, esp.y,          'nesw-resize'],
+                ['sw', esp.x,       esp.y+esp.h,    'nesw-resize'],
+                ['se', esp.x+esp.w, esp.y+esp.h,    'nwse-resize'],
+              ]
+
+              return (
+                <g key={esp.id} transform={`rotate(${ang}, ${cx}, ${cy})`}>
+                  {/* Sombra/glow al seleccionar */}
+                  {isSel && (
+                    <rect
+                      x={esp.x - 3} y={esp.y - 3}
+                      width={esp.w + 6} height={esp.h + 6}
+                      rx={7} fill="none"
+                      stroke={color} strokeWidth={1.5} opacity={.35}
                     />
-                  </div>
-                ))}
-              </div>
-            </div>
+                  )}
 
-            {/* Acciones */}
-            <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:'auto' }}>
-              <Btn ghost small onClick={() => rotarEspacio(selEsp)}>
-                <RotateCcw size={12}/> Girar 90°
-              </Btn>
-              {/* QR solo disponible si el espacio ya está persistido */}
-              {selEsp.codigoQr && (
-                <Btn ghost small onClick={() => handleVerQr(selEsp)}>
-                  <QrCode size={12}/> Ver QR
-                </Btn>
-              )}
-              <Btn danger small onClick={() => handleDelete(selEsp.id)}>
-                <Trash2 size={12}/> Eliminar
-              </Btn>
-            </div>
-          </div>
-        )}
-      </div>
+                  {/* Cuerpo del espacio */}
+                  <rect
+                    x={esp.x + 2} y={esp.y + 2}
+                    width={esp.w - 4} height={esp.h - 4}
+                    rx={5}
+                    fill={color + (isSel ? '28' : '14')}
+                    stroke={isSel ? '#fff' : color}
+                    strokeWidth={isSel ? 2 : 1.5}
+                    style={{ cursor: 'grab' }}
+                    onMouseDown={ev => {
+                      if (dragRef.current?.type) return
+                      const snapshots = {}
+                      espacios.forEach(e => { snapshots[e.id] = { x: e.x, y: e.y } })
+                      const pt = getSVGCoord(ev)
+                      const ids = ev.shiftKey
+                        ? (selIds.has(esp.id) ? [...selIds] : [...selIds, esp.id])
+                        : (selIds.has(esp.id) ? [...selIds] : [esp.id])
+                      if (!ev.shiftKey && !selIds.has(esp.id)) setSelIds(new Set([esp.id]))
+                      dragRef.current = { type: 'move', startX: pt.x, startY: pt.y, snapshots, ids }
+                      ev.stopPropagation()
+                    }}
+                    onClick={ev => {
+                      ev.stopPropagation()
+                      if (ev.shiftKey) {
+                        setSelIds(prev => { const n = new Set(prev); n.has(esp.id) ? n.delete(esp.id) : n.add(esp.id); return n })
+                      } else {
+                        setSelIds(new Set([esp.id]))
+                      }
+                    }}
+                  />
 
-      {/* ── Modal: Auto-generar ── */}
-      {mAutoGen && (
-        <Modal title="Auto-generar espacios" onClose={() => setMAutoGen(false)} maxWidth={420}>
-          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-            <Field label="Tipo de vehículo">
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                {TIPOS.map(t => <TipoBtn key={t} t={t} active={autoForm.tipoVehiculo===t} onClick={() => setAutoForm(p=>({...p,tipoVehiculo:t}))}/>)}
-              </div>
-            </Field>
+                  {/* Línea indicadora de orientación (frente del espacio) */}
+                  <line
+                    x1={esp.x + esp.w * .2} y1={esp.y + 5}
+                    x2={esp.x + esp.w * .8} y2={esp.y + 5}
+                    stroke={color} strokeWidth={2} strokeLinecap="round" opacity={.6}
+                    pointerEvents="none"
+                  />
 
-            <div style={{ background:C.s2, borderRadius:10, padding:'12px 14px' }}>
-              <p style={{ fontSize:11, fontWeight:600, color:C.muted, marginBottom:10 }}>Grilla (vacío = calcular automáticamente)</p>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
-                <div>
-                  <p style={{ fontSize:10, color:C.muted, marginBottom:4 }}>Columnas</p>
-                  <input type="number" min={1} placeholder="Auto" value={autoForm.columnas} onChange={e=>setAutoForm(p=>({...p,columnas:e.target.value}))} style={{ ...inputSt, padding:'7px 10px', fontSize:12 }}/>
-                </div>
-                <div>
-                  <p style={{ fontSize:10, color:C.muted, marginBottom:4 }}>Filas</p>
-                  <input type="number" min={1} placeholder="Auto" value={autoForm.filas} onChange={e=>setAutoForm(p=>({...p,filas:e.target.value}))} style={{ ...inputSt, padding:'7px 10px', fontSize:12 }}/>
-                </div>
-              </div>
+                  {/* Icono tipo */}
+                  <text
+                    x={cx} y={cy - fs * .5}
+                    textAnchor="middle" fontSize={Math.min(esp.w, esp.h) < 40 ? 10 : 16}
+                    pointerEvents="none"
+                  >{icon}</text>
 
-              <p style={{ fontSize:11, fontWeight:600, color:C.muted, marginBottom:10 }}>Márgenes y dimensiones</p>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-                {[
-                  ['margenX','Margen X'],['margenY','Margen Y'],
-                  ['espaciadoH','Espaciado H'],['espaciadoV','Espaciado V'],
-                  ['espacioAncho','Ancho bloque'],['espacioAlto','Alto bloque'],
-                ].map(([k,label]) => (
-                  <div key={k}>
-                    <p style={{ fontSize:10, color:C.muted, marginBottom:4 }}>{label}</p>
-                    <input type="number" min={1} value={autoForm[k]} onChange={e=>setAutoForm(p=>({...p,[k]:e.target.value}))} style={{ ...inputSt, padding:'7px 10px', fontSize:12 }}/>
-                  </div>
-                ))}
-              </div>
-            </div>
+                  {/* Código */}
+                  <text
+                    x={cx} y={cy + fs + 4}
+                    textAnchor="middle" fontSize={fs} fontWeight={700}
+                    fill={color} fontFamily={FF} pointerEvents="none"
+                  >{esp.codigo}</text>
 
-            <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
-              <input type="checkbox" checked={autoForm.reemplazar} onChange={e=>setAutoForm(p=>({...p,reemplazar:e.target.checked}))} style={{ width:16, height:16, accentColor:C.accent }}/>
-              <span style={{ fontSize:13, color:C.text }}>Reemplazar espacios sin reservas activas</span>
-            </label>
+                  {/* Handles resize (solo cuando seleccionado) */}
+                  {isSel && handles.map(([h, hx, hy, cur]) => (
+                    <rect
+                      key={h}
+                      x={hx - HANDLE_R} y={hy - HANDLE_R}
+                      width={HANDLE_R * 2} height={HANDLE_R * 2} rx={2}
+                      fill={C.surface} stroke={color} strokeWidth={1.5}
+                      style={{ cursor: cur }}
+                      onMouseDown={ev => { ev.stopPropagation(); startResize(ev, esp, h) }}
+                    />
+                  ))}
 
-            <div style={{ display:'flex', alignItems:'flex-start', gap:8, background:'#ffaa0010', border:'1px solid #ffaa0025', borderRadius:9, padding:'10px 12px' }}>
-              <AlertTriangle size={13} color="#ffaa00" style={{ marginTop:2, flexShrink:0 }}/>
-              <p style={{ fontSize:11, color:'#ffaa00', lineHeight:1.5 }}>Los espacios con reservas activas no se tocarán.</p>
-            </div>
+                  {/* Handle de rotación (solo cuando seleccionado) */}
+                  {isSel && (
+                    <g>
+                      <line
+                        x1={cx} y1={esp.y - 8}
+                        x2={cx} y2={esp.y - ROT_HANDLE_OFFSET}
+                        stroke={color} strokeWidth={1} opacity={.6}
+                        pointerEvents="none"
+                      />
+                      <circle
+                        cx={cx} cy={esp.y - ROT_HANDLE_OFFSET}
+                        r={HANDLE_R + 1}
+                        fill={C.surface} stroke={color} strokeWidth={1.5}
+                        style={{ cursor: 'crosshair' }}
+                        onMouseDown={ev => { ev.stopPropagation(); startRotate(ev, esp) }}
+                      />
+                      {/* Flecha de rotación */}
+                      <text
+                        x={cx} y={esp.y - ROT_HANDLE_OFFSET + 4}
+                        textAnchor="middle" fontSize={8}
+                        fill={color} fontFamily={FF} pointerEvents="none"
+                      >↺</text>
+                    </g>
+                  )}
+                </g>
+              )
+            })}
 
-            <div style={{ display:'flex', gap:8, marginTop:4 }}>
-              <Btn ghost onClick={() => setMAutoGen(false)}>Cancelar</Btn>
-              <Btn onClick={handleAutoGen} style={{ flex:2 }}><Grid size={13}/> Generar espacios</Btn>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ── Modal: Añadir espacio ── */}
-      {mAddEsp && (
-        <Modal title="Añadir espacio" onClose={() => setMAddEsp(false)} maxWidth={380}>
-          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-            <Field label="Código del espacio">
-              <input
-                autoFocus
-                value={addForm.codigo}
-                onChange={e => setAddForm(p=>({...p,codigo:e.target.value.toUpperCase()}))}
-                onKeyDown={e => e.key==='Enter' && handleAddEsp()}
-                placeholder="ej. A-01"
-                style={inputSt}
+            {/* Recuadro de selección */}
+            {selBox && (
+              <rect
+                x={Math.min(selBox.x0, selBox.x1)} y={Math.min(selBox.y0, selBox.y1)}
+                width={Math.abs(selBox.x1 - selBox.x0)} height={Math.abs(selBox.y1 - selBox.y0)}
+                fill={C.accent + '14'} stroke={C.accent}
+                strokeWidth={1} strokeDasharray="4 3"
+                pointerEvents="none"
               />
-            </Field>
-            <Field label="Tipo de vehículo">
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                {TIPOS.map(t => <TipoBtn key={t} t={t} active={addForm.tipoVehiculo===t} onClick={() => setAddForm(p=>({...p,tipoVehiculo:t}))}/>)}
+            )}
+          </svg>
+        </div>
+
+        {/* ── Panel Derecho: Propiedades ── */}
+        <div style={{
+          width: 240, background: C.surface, borderLeft: `1px solid ${C.border}`,
+          display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto',
+        }}>
+          {selOne ? (
+            <>
+              <Section title="PROPIEDADES" icon={<Settings2 size={12} />}>
+                {/* Código */}
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: .5, display: 'block', marginBottom: 3 }}>CÓDIGO</label>
+                  <input
+                    value={selOne.codigo}
+                    onChange={e => updateProp(selOne.id, 'codigo', e.target.value)}
+                    style={{ width: '100%', padding: '6px 8px', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 12, fontFamily: FF, outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                {/* Tipo */}
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: .5, display: 'block', marginBottom: 3 }}>TIPO VEHÍCULO</label>
+                  <select
+                    value={selOne.tipoVehiculo}
+                    onChange={e => updateProp(selOne.id, 'tipoVehiculo', e.target.value)}
+                    style={{ width: '100%', padding: '6px 8px', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 12, fontFamily: FF, outline: 'none' }}
+                  >
+                    {TIPOS.map(t => <option key={t} value={t}>{TV_ICON[t]} {t}</option>)}
+                  </select>
+                </div>
+
+                {/* Posición */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                  <NumInput label="X" value={Math.round(selOne.x)} onChange={v => updateProp(selOne.id, 'x', v)} />
+                  <NumInput label="Y" value={Math.round(selOne.y)} onChange={v => updateProp(selOne.id, 'y', v)} />
+                </div>
+
+                {/* Tamaño */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                  <NumInput label="W" value={Math.round(selOne.w)} min={20} onChange={v => updateProp(selOne.id, 'w', v)} />
+                  <NumInput label="H" value={Math.round(selOne.h)} min={20} onChange={v => updateProp(selOne.id, 'h', v)} />
+                </div>
+
+                {/* Ángulo */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: .5, display: 'block', marginBottom: 6 }}>
+                    ÁNGULO — {Math.round(selOne.angulo || 0)}°
+                  </label>
+                  <input
+                    type="range" min={0} max={359} step={1}
+                    value={selOne.angulo || 0}
+                    onChange={e => updateProp(selOne.id, 'angulo', Number(e.target.value))}
+                    style={{ width: '100%', accentColor: TV_COLOR[selOne.tipoVehiculo] || C.accent }}
+                  />
+                  {/* Presets ángulo */}
+                  <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                    {[0, 45, 90, 135, 180, 270].map(a => (
+                      <button
+                        key={a}
+                        onClick={() => updateProp(selOne.id, 'angulo', a)}
+                        style={{
+                          padding: '3px 8px', borderRadius: 6,
+                          background: Math.round(selOne.angulo || 0) === a ? TV_COLOR[selOne.tipoVehiculo] + '30' : C.s2,
+                          border: `1px solid ${Math.round(selOne.angulo || 0) === a ? TV_COLOR[selOne.tipoVehiculo] : C.border}`,
+                          color: Math.round(selOne.angulo || 0) === a ? TV_COLOR[selOne.tipoVehiculo] : C.muted,
+                          fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF,
+                        }}
+                      >{a}°</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Color indicator */}
+                <div style={{ padding: '8px 10px', background: (TV_COLOR[selOne.tipoVehiculo] || C.accent) + '14', border: `1px solid ${(TV_COLOR[selOne.tipoVehiculo] || C.accent)}30`, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: TV_COLOR[selOne.tipoVehiculo] || C.accent }} />
+                  <span style={{ fontSize: 12, color: TV_COLOR[selOne.tipoVehiculo] || C.accent, fontWeight: 700, fontFamily: FF }}>
+                    {TV_ICON[selOne.tipoVehiculo]} {selOne.tipoVehiculo}
+                  </span>
+                </div>
+
+                {/* Acciones rápidas */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                  <button onClick={duplicarSel} style={{ flex: 1, padding: '7px 0', borderRadius: 8, background: C.s2, border: `1px solid ${C.border}`, color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                    <Copy size={12} /> Duplicar
+                  </button>
+                  <button onClick={eliminarSel} style={{ flex: 1, padding: '7px 0', borderRadius: 8, background: C.danger + '14', border: `1px solid ${C.danger}40`, color: C.danger, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                    <Trash2 size={12} /> Eliminar
+                  </button>
+                </div>
+              </Section>
+            </>
+          ) : selArr.length > 1 ? (
+            <Section title="SELECCIÓN" icon={<Layers size={12} />}>
+              <div style={{ padding: '10px', background: C.s2, borderRadius: 8, marginBottom: 8 }}>
+                <p style={{ fontSize: 13, color: C.text, fontWeight: 700, fontFamily: FF, margin: 0 }}>{selArr.length} espacios</p>
+                <p style={{ fontSize: 11, color: C.muted, fontFamily: FF, margin: '4px 0 0' }}>Usa los botones de alineación en la barra superior</p>
               </div>
-            </Field>
-            <p style={{ fontSize:12, color:C.muted, lineHeight:1.5 }}>
-              Aparecerá en la esquina superior izquierda del canvas. Arrástralo a su posición y redimensiónalo desde las esquinas.
-            </p>
-            <div style={{ display:'flex', gap:8 }}>
-              <Btn ghost onClick={() => setMAddEsp(false)}>Cancelar</Btn>
-              <Btn disabled={!addForm.codigo.trim()} onClick={handleAddEsp} style={{ flex:2 }}><Plus size={13}/> Añadir</Btn>
+              <button onClick={eliminarSel} style={{ padding: '8px', borderRadius: 8, background: C.danger + '14', border: `1px solid ${C.danger}40`, color: C.danger, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FF, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Trash2 size={13} /> Eliminar selección
+              </button>
+            </Section>
+          ) : (
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 10 }}>
+              <MousePointer2 size={28} color={C.border} />
+              <p style={{ color: C.muted, fontSize: 12, fontFamily: FF, textAlign: 'center', lineHeight: 1.6 }}>
+                Haz clic en un espacio para ver y editar sus propiedades
+              </p>
             </div>
-          </div>
-        </Modal>
-      )}
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
-      {/* ── Modal: QR ── */}
-      {mQr && (
-        <Modal title={`QR — ${mQr.codigo}`} onClose={() => setMQr(null)} maxWidth={380}>
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
-            <div style={{ background:'#fff', padding:16, borderRadius:14, boxShadow:'0 4px 24px #00000028' }}>
-              <img src={qrImageUrl(mQr)} alt={`QR ${mQr.codigo}`} style={{ width:200, height:200, display:'block' }}/>
-            </div>
-
-            <div style={{ background:C.s2, borderRadius:10, padding:'10px 14px', textAlign:'center', width:'100%' }}>
-              <p style={{ fontSize:10, color:C.muted, marginBottom:3 }}>UUID del slot físico</p>
-              <p style={{ fontSize:10, fontWeight:600, color:C.text, wordBreak:'break-all', lineHeight:1.5 }}>{mQr.codigoQr}</p>
-            </div>
-
-            <p style={{ fontSize:12, color:C.muted, textAlign:'center', lineHeight:1.6 }}>
-              Imprime este QR y pégalo en el espacio físico <strong style={{ color:C.text }}>{mQr.codigo}</strong>. El usuario lo escanea con su cámara para hacer check-in/out.
-            </p>
-
-            <Btn onClick={() => downloadQr(mQr)} style={{ width:'100%', justifyContent:'center' }}>
-              <Download size={14}/> Descargar QR
-            </Btn>
-          </div>
-        </Modal>
-      )}
+// ── Sección colapsable del panel lateral ───────────────────────────────────
+function Section({ title, icon, children, collapsible = true, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div style={{ borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+      <button
+        onClick={() => collapsible && setOpen(v => !v)}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          width: '100%', padding: '10px 16px', background: 'none', border: 'none',
+          color: C.muted, fontSize: 10, fontWeight: 700, letterSpacing: 1,
+          cursor: collapsible ? 'pointer' : 'default', fontFamily: FF,
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>{icon} {title}</span>
+        {collapsible && (open ? <ChevronUp size={13} /> : <ChevronDown size={13} />)}
+      </button>
+      {open && <div style={{ padding: '0 14px 14px' }}>{children}</div>}
     </div>
   )
 }
