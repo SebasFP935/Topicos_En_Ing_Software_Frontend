@@ -26,11 +26,11 @@ const fmtFecha = dateStr => {
 }
 
 const ESTADO_COLOR = {
-  ACTIVA:      '#3de8c8',
-  CONFIRMADA:  '#5b7eff',
-  COMPLETADA:  '#6b7099',
-  CANCELADA:   '#ff4d6d',
-  NO_SHOW:     '#ffaa00',
+  ACTIVA:      C.teal,
+  CONFIRMADA:  C.accent,
+  COMPLETADA:  C.muted,
+  CANCELADA:   C.danger,
+  NO_SHOW:     C.warn,
 }
 
 export default function Home() {
@@ -78,7 +78,7 @@ export default function Home() {
     return f >= ini && f <= fin
   }).length
 
-  const COLORS = ['#a259ff', '#5b7eff', '#3de8c8']
+  const COLORS = [C.accent, C.purple, C.teal]
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: '36px 28px 56px' }}>
@@ -89,7 +89,7 @@ export default function Home() {
           <p style={{ fontSize: 14, color: C.muted, marginBottom: 4, fontFamily: FF }}>
             {new Date().getHours() < 12 ? 'Buenos días' : new Date().getHours() < 18 ? 'Buenas tardes' : 'Buenas noches'}
           </p>
-          <h1 style={{ fontSize: 34, fontWeight: 800, color: C.text, fontFamily: FF }}>
+          <h1 style={{ fontSize: 34, fontWeight: 800, color: C.text, fontFamily: FF, letterSpacing: '-0.02em' }}>
             {user?.nombre} {user?.apellido} 👋
           </h1>
           <p style={{ fontSize: 14, color: C.muted, marginTop: 6, fontFamily: FF }}>
@@ -129,7 +129,7 @@ export default function Home() {
               onClick={() => nav('/reservas')}
               style={{
                 padding: '9px 18px', borderRadius: 10,
-                background: '#ffffff25', border: '1px solid #ffffff40',
+                background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.45)',
                 color: '#fff', fontSize: 13, fontWeight: 600,
                 cursor: 'pointer', fontFamily: FF,
                 display: 'flex', alignItems: 'center', gap: 6,
@@ -142,7 +142,7 @@ export default function Home() {
               disabled={canceling === activa.id}
               style={{
                 padding: '9px 18px', borderRadius: 10,
-                background: '#ff4d6d25', border: '1px solid #ff4d6d50',
+                background: C.warn + '30', border: `1px solid ${C.warn}66`,
                 color: '#fff', fontSize: 13, fontWeight: 600,
                 cursor: 'pointer', fontFamily: FF,
                 display: 'flex', alignItems: 'center', gap: 6,
@@ -177,7 +177,7 @@ export default function Home() {
         {[
           { label: 'Mis reservas',    val: loading ? '...' : reservas.filter(r => r.estado === 'ACTIVA').length, sub: 'Activas ahora',   color: C.teal,   Icon: ParkingSquare },
           { label: 'Esta semana',     val: loading ? '...' : totalSemana, sub: 'Reservas programadas', color: C.accent, Icon: BarChart2     },
-          { label: 'Completadas',     val: loading ? '...' : reservas.filter(r => r.estado === 'COMPLETADA').length, sub: 'Total histórico', color: '#a259ff', Icon: CheckCircle  },
+          { label: 'Completadas',     val: loading ? '...' : reservas.filter(r => r.estado === 'COMPLETADA').length, sub: 'Total histórico', color: C.warn, Icon: CheckCircle  },
         ].map(s => (
           <Card key={s.label}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
@@ -192,76 +192,49 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Bottom grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 28, alignItems: 'start' }}>
-
-        {/* Próximas reservas */}
-        <div>
-          <SectionLabel>Próximas reservas</SectionLabel>
-          {loading ? (
-            <Card><p style={{ color: C.muted, fontFamily: FF, fontSize: 13 }}>Cargando...</p></Card>
-          ) : proximas.length === 0 ? (
-            <Card>
-              <p style={{ color: C.muted, fontFamily: FF, fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
-                No tienes reservas próximas
-              </p>
-            </Card>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {proximas.map((r, i) => (
-                <Card key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{
-                    width: 48, height: 48, borderRadius: 12,
-                    background: COLORS[i % 3] + '18',
-                    border: '1px solid ' + COLORS[i % 3] + '30',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <ParkingSquare size={22} color={COLORS[i % 3]} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 15, fontWeight: 600, color: C.text, fontFamily: FF }}>
-                      {r.codigoEspacio} · {r.zonaNombre}
-                    </p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-                      <Clock size={12} color={C.muted} />
-                      <p style={{ fontSize: 13, color: C.muted, fontFamily: FF }}>
-                        {fmtFecha(r.fechaReserva)} · {fmtHora(r.fechaInicio)} - {fmtHora(r.fechaFin)}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge color={COLORS[i % 3]}>{fmtFecha(r.fechaReserva)}</Badge>
-                </Card>
-              ))}
-            </div>
-          )}
-          <Button variant="primary" onClick={() => nav('/reservar')} icon={Plus}
-            style={{ width: '100%', justifyContent: 'center', marginTop: 10 }}>
-            Nueva reserva
-          </Button>
-        </div>
-
-        {/* Aviso */}
-        <div>
-          <SectionLabel>Aviso del día</SectionLabel>
-          <Card style={{ borderColor: C.warn + '35', background: C.warn + '08' }}>
-            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: C.warn + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Clock size={20} color={C.warn} />
-              </div>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6, fontFamily: FF }}>
-                  Hora pico identificada
-                </p>
-                <p style={{ fontSize: 30, fontWeight: 800, color: C.warn, marginBottom: 8, fontFamily: FF }}>
-                  10:00 AM
-                </p>
-                <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, fontFamily: FF }}>
-                  El Horario B (10:00-12:00) tiene alta ocupación. Reserva con anticipación para asegurar tu espacio.
-                </p>
-              </div>
-            </div>
+      {/* Próximas reservas */}
+      <div style={{ maxWidth: 760 }}>
+        <SectionLabel>Próximas reservas</SectionLabel>
+        {loading ? (
+          <Card><p style={{ color: C.muted, fontFamily: FF, fontSize: 13 }}>Cargando...</p></Card>
+        ) : proximas.length === 0 ? (
+          <Card>
+            <p style={{ color: C.muted, fontFamily: FF, fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
+              No tienes reservas próximas
+            </p>
           </Card>
-        </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {proximas.map((r, i) => (
+              <Card key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 12,
+                  background: COLORS[i % 3] + '18',
+                  border: '1px solid ' + COLORS[i % 3] + '30',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <ParkingSquare size={22} color={COLORS[i % 3]} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: C.text, fontFamily: FF }}>
+                    {r.codigoEspacio} · {r.zonaNombre}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                    <Clock size={12} color={C.muted} />
+                    <p style={{ fontSize: 13, color: C.muted, fontFamily: FF }}>
+                      {fmtFecha(r.fechaReserva)} · {fmtHora(r.fechaInicio)} - {fmtHora(r.fechaFin)}
+                    </p>
+                  </div>
+                </div>
+                <Badge color={COLORS[i % 3]}>{fmtFecha(r.fechaReserva)}</Badge>
+              </Card>
+            ))}
+          </div>
+        )}
+        <Button variant="primary" onClick={() => nav('/reservar')} icon={Plus}
+          style={{ width: '100%', justifyContent: 'center', marginTop: 10 }}>
+          Nueva reserva
+        </Button>
       </div>
     </div>
   )

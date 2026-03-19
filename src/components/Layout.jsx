@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
+import { C } from '../tokens'
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)
@@ -16,9 +17,25 @@ function useIsMobile() {
 export function Layout() {
   const isMobile = useIsMobile()
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#06060f', color: '#e8eaf8' }}>
+    <div
+      style={{
+        display: 'flex',
+        minHeight: '100vh',
+        color: C.text,
+        background:
+          'radial-gradient(circle at 80% 0%, rgba(255,204,0,0.14) 0%, transparent 20%), linear-gradient(180deg, #031428 0%, #052347 100%)',
+      }}
+    >
       {!isMobile && <Sidebar />}
-      <main style={{ flex: 1, minWidth: 0, paddingBottom: isMobile ? 72 : 0, overflowX: 'hidden' }}>
+      <main
+        style={{
+          flex: 1,
+          minWidth: 0,
+          paddingBottom: isMobile ? 72 : 0,
+          overflowX: 'hidden',
+          backdropFilter: 'blur(4px)',
+        }}
+      >
         <Outlet />
       </main>
       {isMobile && <BottomNav />}

@@ -1,23 +1,23 @@
 // src/pages/Login.jsx
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff, ParkingSquare, ArrowRight, Car, Check } from 'lucide-react'
 import { auth } from '../utils/auth'
 
 const TIPOS_DOC = ['CI', 'PASAPORTE', 'NIT', 'OTRO']
 
 // ── Colores propios (no depende de tokens globales para ser autónomo) ───────
-const BG       = '#06060f'
-const SURFACE  = '#0d0e1f'
-const BORDER   = '#1e2040'
-const ACCENT   = '#5b7eff'
-const PURPLE   = '#a259ff'
-const TEAL     = '#3de8c8'
-const TEXT     = '#e8eaf8'
-const MUTED    = '#6b7099'
-const DANGER   = '#ff4d6d'
-const GRAD     = 'linear-gradient(135deg, #5b7eff 0%, #a259ff 100%)'
-const GRAD2    = 'linear-gradient(135deg, #a259ff 0%, #5b7eff 100%)'
+const BG       = '#031428'
+const SURFACE  = '#052347'
+const BORDER   = '#1a4b7a'
+const ACCENT   = '#0068b7'
+const PURPLE   = '#005b99'
+const TEAL     = '#f8d600'
+const TEXT     = '#f7fbff'
+const MUTED    = '#9fb8d5'
+const DANGER   = '#ff5a67'
+const GRAD     = 'linear-gradient(135deg, #003366 0%, #0068b7 72%, #f8d600 100%)'
+const GRAD2    = 'linear-gradient(135deg, #005b99 0%, #003366 65%, #ffcc00 100%)'
 
 // ── Estilos globales (font import) ──────────────────────────────────────────
 const GLOBAL_STYLE = `
@@ -201,7 +201,7 @@ function SelectField({ label, value, onChange, options, half }) {
 function LeftPanel() {
   return (
     <div style={{
-      flex: 1, background: 'linear-gradient(155deg, #0a0c24 0%, #0e1035 40%, #140c2e 100%)',
+      flex: 1, background: 'linear-gradient(155deg, #031428 0%, #052347 42%, #0a2f5c 100%)',
       position: 'relative', overflow: 'hidden',
       display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
       padding: '48px 44px', minHeight: '100vh',
@@ -235,7 +235,7 @@ function LeftPanel() {
             [0,1,2].map(col => {
               const x = 60 + col * 110 + row * 18
               const y = 140 + row * 85 - col * 12
-              const colors = ['#5b7eff','#a259ff','#3de8c8','#5b7eff']
+  const colors = ['#0068b7', '#005b99', '#f8d600', '#003366']
               const c = colors[(row + col) % colors.length]
               return (
                 <g key={`${row}-${col}`} style={{ animation: `floatA ${3.5 + (row+col)*0.4}s ease-in-out infinite`, animationDelay: `${(row*col*0.3)}s` }}>
@@ -334,9 +334,11 @@ function LeftPanel() {
 // ── Componente principal ────────────────────────────────────────────────────
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [tab,     setTab]     = useState('login')
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
+  const redirectTo = location.state?.redirect
 
   // Login
   const [email,    setEmail]    = useState('')
@@ -365,7 +367,7 @@ export default function Login() {
       const data = await res.json()
       if (!res.ok) { setError(data.mensaje || 'Credenciales incorrectas.'); return }
       auth.save(data)
-      navigate('/')
+      navigate(typeof redirectTo === 'string' && redirectTo.startsWith('/') ? redirectTo : '/', { replace: true })
     } catch {
       setError('No se pudo conectar con el servidor.')
     } finally {
@@ -401,7 +403,7 @@ export default function Login() {
       const data = await res.json()
       if (!res.ok) { setError(data.mensaje || 'Error al registrarse.'); return }
       auth.save(data)
-      navigate('/')
+      navigate(typeof redirectTo === 'string' && redirectTo.startsWith('/') ? redirectTo : '/', { replace: true })
     } catch {
       setError('No se pudo conectar con el servidor.')
     } finally {

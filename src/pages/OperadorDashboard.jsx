@@ -68,14 +68,15 @@ export default function OperadorDashboard() {
   useEffect(() => { cargar() }, [cargar])
 
   // ── Acción por botón en fila ──────────────────────────────────────────────
-  const doAccion = async (reserva, accion) => {
+  const doAccion = async (reserva) => {
     setActionLoading(reserva.id)
     try {
-      const url = `/api/reservas/${accion}/${reserva.codigoQr}`
-      const res = await auth.fetchAuth(url, { method: 'PATCH' })
+      if (!reserva.codigoQrFisico) throw new Error('El espacio no tiene QR fisico configurado.')
+      const url = `/api/reservas/escanear/${encodeURIComponent(reserva.codigoQrFisico)}`
+      const res = await auth.fetchAuth(url)
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
-        throw new Error(d.mensaje || `Error en ${accion}`)
+        throw new Error(d.mensaje || 'No se pudo procesar el QR fisico.')
       }
       await cargar()
     } catch (e) {
@@ -92,34 +93,24 @@ export default function OperadorDashboard() {
     setProcLoading(true)
     setManualMsg(null)
 
-    // Intenta checkin, si ya está activo intenta checkout
-    const tryAction = async (accion) => {
-      const res = await auth.fetchAuth(`/api/reservas/${accion}/${code}`, { method: 'PATCH' })
-      const d   = await res.json().catch(() => ({}))
+    const tryEspacioFisico = async () => {
+      const res = await auth.fetchAuth(`/api/reservas/escanear/${encodeURIComponent(code)}`)
+      const d = await res.json().catch(() => ({}))
       return { ok: res.ok, data: d, status: res.status }
     }
 
     try {
-      let r = await tryAction('checkin')
-      if (r.ok) {
-        setManualMsg({ tipo: 'success', msg: `✓ Check-in registrado — Espacio ${r.data.codigoEspacio}` })
+      const fisico = await tryEspacioFisico()
+      if (fisico.ok) {
+        const accion = fisico.data?.accion === 'CHECK_OUT' ? 'Check-out' : 'Check-in'
+        setManualMsg({ tipo: 'success', msg: `OK ${accion} registrado - Espacio ${fisico.data.codigoEspacio}` })
         setManualQr('')
         cargar()
-      } else if (r.status === 422 || r.status === 400) {
-        // Probablemente ya hizo check-in, intentar checkout
-        let r2 = await tryAction('checkout')
-        if (r2.ok) {
-          setManualMsg({ tipo: 'success', msg: `✓ Check-out registrado — Espacio ${r2.data.codigoEspacio}` })
-          setManualQr('')
-          cargar()
-        } else {
-          setManualMsg({ tipo: 'error', msg: r.data.mensaje || r2.data.mensaje || 'No se pudo procesar el código.' })
-        }
       } else {
-        setManualMsg({ tipo: 'error', msg: r.data.mensaje || 'QR inválido o reserva no encontrada.' })
+        setManualMsg({ tipo: 'error', msg: fisico.data?.mensaje || 'No se pudo procesar el QR fisico.' })
       }
     } catch {
-      setManualMsg({ tipo: 'error', msg: 'Error de conexión.' })
+      setManualMsg({ tipo: 'error', msg: 'Error de conexion.' })
     } finally {
       setProcLoading(false)
     }
@@ -168,17 +159,17 @@ export default function OperadorDashboard() {
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px', marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <ScanLine size={16} color={C.accent} />
-          <p style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFamily: FF }}>Procesar código QR manualmente</p>
+          <p style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFamily: FF }}>Procesar codigo QR manualmente</p>
         </div>
         <p style={{ fontSize: 12, color: C.muted, fontFamily: FF, marginBottom: 14 }}>
-          Introduce el código QR de la <strong style={{ color: C.text }}>reserva</strong> del usuario para registrar su entrada o salida.
+          Introduce el <strong style={{ color: C.text }}>QR fisico del espacio</strong> para registrar entrada o salida.
         </p>
         <div style={{ display: 'flex', gap: 10 }}>
           <input
             value={manualQr}
             onChange={e => { setManualQr(e.target.value); setManualMsg(null) }}
             onKeyDown={e => e.key === 'Enter' && procesarManual()}
-            placeholder="Pega o escribe el código QR de la reserva..."
+            placeholder="Pega o escribe el codigo QR fisico del espacio..."
             style={{ flex: 1, padding: '10px 14px', borderRadius: 10, background: C.s2, border: `1px solid ${C.border}`, color: C.text, fontSize: 14, fontFamily: FF, outline: 'none' }}
           />
           <button
@@ -260,7 +251,7 @@ export default function OperadorDashboard() {
                         {r.estado === 'PENDIENTE_ACTIVACION' && (
                           <button
                             disabled={actionLoading === r.id}
-                            onClick={() => doAccion(r, 'checkin')}
+                            onClick={() => doAccion(r)}
                             style={{ padding: '5px 12px', borderRadius: 7, background: '#3de8c814', border: '1px solid #3de8c830', color: '#3de8c8', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF, opacity: actionLoading === r.id ? 0.5 : 1 }}
                           >
                             {actionLoading === r.id ? '…' : 'Check-in'}
@@ -269,7 +260,7 @@ export default function OperadorDashboard() {
                         {r.estado === 'ACTIVA' && (
                           <button
                             disabled={actionLoading === r.id}
-                            onClick={() => doAccion(r, 'checkout')}
+                            onClick={() => doAccion(r)}
                             style={{ padding: '5px 12px', borderRadius: 7, background: '#a259ff14', border: '1px solid #a259ff30', color: '#a259ff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF, opacity: actionLoading === r.id ? 0.5 : 1 }}
                           >
                             {actionLoading === r.id ? '…' : 'Check-out'}
@@ -289,9 +280,13 @@ export default function OperadorDashboard() {
       <div style={{ marginTop: 20, padding: '12px 16px', background: '#5b7eff0a', border: '1px solid #5b7eff20', borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <AlertTriangle size={14} color={C.accent} style={{ marginTop: 1, flexShrink: 0 }} />
         <p style={{ fontSize: 12, color: C.muted, fontFamily: FF, lineHeight: 1.6 }}>
-          El código QR de la reserva está en el correo/ticket del usuario. Para el check-in/out automático, el usuario puede escanear directamente el <strong style={{ color: C.text }}>QR físico del slot</strong> de parqueo con su cámara.
+          El check-in/check-out se realiza únicamente con el <strong style={{ color: C.text }}>QR físico del espacio</strong>. El QR de la reserva ya no se usa en este flujo.
         </p>
       </div>
     </div>
   )
 }
+
+
+
+

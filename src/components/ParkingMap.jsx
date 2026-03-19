@@ -22,7 +22,9 @@ import {
 import { C, GRAD } from '../tokens'
 
 // ── Constantes ─────────────────────────────────────────────────────────────
-const GRID = 20
+const SNAP_GRID = 1
+const VISUAL_GRID = 8
+const MIN_DRAW_SIZE = 20
 const FF   = "'Plus Jakarta Sans', sans-serif"
 
 const W_PARED = '#2e3054'
@@ -30,20 +32,20 @@ const W_PAS   = '#17192e'
 
 const TIPOS_VEHICULO = ['AUTO', 'MOTO', 'BICICLETA', 'DISCAPACIDAD']
 const TV_COLOR = {
-  AUTO:         '#5b7eff',
-  MOTO:         '#a259ff',
-  BICICLETA:    '#3de8c8',
-  DISCAPACIDAD: '#ffaa00',
+  AUTO:         C.accent,
+  MOTO:         C.purple,
+  BICICLETA:    C.teal,
+  DISCAPACIDAD: C.warn,
 }
 const TV_ICON = { AUTO: '🚗', MOTO: '🏍', BICICLETA: '🚲', DISCAPACIDAD: '♿' }
 const ESTADO_COLOR = {
-  DISPONIBLE:    '#3de8c8',
-  OCUPADO:       '#ff4d6d',
-  BLOQUEADO:     '#6b7099',
-  MANTENIMIENTO: '#ffaa00',
+  DISPONIBLE:    C.accent,
+  OCUPADO:       C.danger,
+  BLOQUEADO:     C.muted,
+  MANTENIMIENTO: C.warn,
 }
 
-const snap  = v  => Math.round(v / GRID) * GRID
+const snap  = (v, g = SNAP_GRID) => Math.round(v / g) * g
 const uid   = () => Math.random().toString(36).slice(2, 8)
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
 
@@ -62,15 +64,15 @@ function ToolBtn({ active, onClick, title, danger = false, disabled = false, chi
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '8px 11px', borderRadius: 9, width: '100%',
         background: active  ? GRAD
-                  : danger  ? '#ff4d6d14'
+                  : danger  ? C.danger + '1f'
                   : C.s2,
         color:   active  ? '#fff'
-               : danger  ? '#ff4d6d'
+               : danger  ? C.danger
                : disabled ? C.border
                : C.muted,
         fontSize: 12, fontWeight: 700, cursor: disabled ? 'default' : 'pointer',
         fontFamily: FF, transition: 'background .15s, color .15s',
-        border: `1.5px solid ${active ? 'transparent' : danger ? '#ff4d6d30' : C.border}`,
+        border: `1.5px solid ${active ? 'transparent' : danger ? C.danger + '66' : C.border}`,
         opacity: disabled ? 0.45 : 1,
       }}
     >
@@ -512,8 +514,8 @@ export default function ParkingMap({
       if (drawing) {
         setDrawing(p => ({
           ...p,
-          w: Math.max(GRID, snap(pt.x - p.x)),
-          h: Math.max(GRID, snap(pt.y - p.y)),
+          w: Math.max(MIN_DRAW_SIZE, snap(pt.x - p.x)),
+          h: Math.max(MIN_DRAW_SIZE, snap(pt.y - p.y)),
         }))
       }
     }
@@ -522,7 +524,7 @@ export default function ParkingMap({
       if (isPanning) { setIsPanning(false); panRef.current = null; return }
       dragRef.current = null
 
-      if (!drawing || drawing.w < GRID || drawing.h < GRID) { setDrawing(null); return }
+      if (!drawing || drawing.w < MIN_DRAW_SIZE || drawing.h < MIN_DRAW_SIZE) { setDrawing(null); return }
 
       const rect = { ...drawing, id: uid() }
       if (tool === 'pared' || tool === 'pasillo') {
@@ -593,7 +595,7 @@ export default function ParkingMap({
         onMouseDown={onContainerMouseDown}
         style={{
           flex: 1, overflow: 'hidden', position: 'relative',
-          background: mode === 'editor' ? '#090a18' : C.bg,
+          background: mode === 'editor' ? '#041a35' : C.bg,
           cursor,
         }}
       >
@@ -603,12 +605,12 @@ export default function ParkingMap({
             <defs>
               <pattern
                 id="dotgrid-pm"
-                x={((pan.x % (GRID * zoom)) + GRID * zoom) % (GRID * zoom)}
-                y={((pan.y % (GRID * zoom)) + GRID * zoom) % (GRID * zoom)}
-                width={GRID * zoom} height={GRID * zoom}
+                x={((pan.x % (VISUAL_GRID * zoom)) + VISUAL_GRID * zoom) % (VISUAL_GRID * zoom)}
+                y={((pan.y % (VISUAL_GRID * zoom)) + VISUAL_GRID * zoom) % (VISUAL_GRID * zoom)}
+                width={VISUAL_GRID * zoom} height={VISUAL_GRID * zoom}
                 patternUnits="userSpaceOnUse"
               >
-                <circle cx={GRID * zoom / 2} cy={GRID * zoom / 2} r={0.8} fill="#3a3c5c" opacity={0.7} />
+                <circle cx={VISUAL_GRID * zoom / 2} cy={VISUAL_GRID * zoom / 2} r={0.8} fill="#2b5d8a" opacity={0.7} />
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#dotgrid-pm)" />
@@ -638,11 +640,11 @@ export default function ParkingMap({
           {/* Grid de líneas (editor, muy sutil) */}
           {mode === 'editor' && (
             <g opacity={0.04}>
-              {Array.from({ length: Math.ceil(ANCHO / GRID) }).map((_, i) => (
-                <line key={'v'+i} x1={i*GRID} y1={0} x2={i*GRID} y2={ALTO} stroke={C.muted} strokeWidth={0.5} />
+              {Array.from({ length: Math.ceil(ANCHO / VISUAL_GRID) }).map((_, i) => (
+                <line key={'v'+i} x1={i*VISUAL_GRID} y1={0} x2={i*VISUAL_GRID} y2={ALTO} stroke={C.muted} strokeWidth={0.5} />
               ))}
-              {Array.from({ length: Math.ceil(ALTO / GRID) }).map((_, i) => (
-                <line key={'h'+i} x1={0} y1={i*GRID} x2={ANCHO} y2={i*GRID} stroke={C.muted} strokeWidth={0.5} />
+              {Array.from({ length: Math.ceil(ALTO / VISUAL_GRID) }).map((_, i) => (
+                <line key={'h'+i} x1={0} y1={i*VISUAL_GRID} x2={ANCHO} y2={i*VISUAL_GRID} stroke={C.muted} strokeWidth={0.5} />
               ))}
             </g>
           )}
@@ -656,14 +658,14 @@ export default function ParkingMap({
                 {sel && (
                   <rect
                     x={el.x - 4} y={el.y - 4} width={el.w + 8} height={el.h + 8}
-                    fill="none" stroke="#5b7eff" strokeWidth={1}
+                    fill="none" stroke={C.accent} strokeWidth={1}
                     rx={6} opacity={0.35} strokeDasharray="5 3"
                   />
                 )}
                 <rect
                   x={el.x} y={el.y} width={el.w} height={el.h}
                   fill={el.type === 'pared' ? W_PARED : W_PAS}
-                  stroke={sel ? '#5b7eff' : (el.type === 'pared' ? '#4a4c6c' : '#2a2c4c')}
+                  stroke={sel ? C.accent : (el.type === 'pared' ? '#4a4c6c' : '#2a2c4c')}
                   strokeWidth={sel ? 2 : 1} rx={el.type === 'pasillo' ? 4 : 2}
                 />
                 {mode === 'editor' && (
@@ -682,8 +684,8 @@ export default function ParkingMap({
             <rect
               x={drawing.x} y={drawing.y}
               width={drawing.w || 1} height={drawing.h || 1}
-              fill={tool === 'espacio' ? '#5b7eff18' : tool === 'pared' ? '#3a3c5c80' : '#1a1c3580'}
-              stroke={tool === 'espacio' ? '#5b7eff' : C.muted}
+              fill={tool === 'espacio' ? C.accent + '26' : tool === 'pared' ? '#3a3c5c80' : '#1a1c3580'}
+              stroke={tool === 'espacio' ? C.accent : C.muted}
               strokeWidth={1.5} strokeDasharray="5 3" rx={2}
             />
           )}
@@ -767,7 +769,7 @@ export default function ParkingMap({
                 padding: '11px 22px', borderRadius: 12, border: 'none',
                 background: GRAD, color: '#fff', fontSize: 14,
                 fontWeight: 700, cursor: 'pointer', fontFamily: FF,
-                boxShadow: '0 4px 24px #5b7eff50',
+                boxShadow: '0 4px 24px rgba(0,104,183,.45)',
                 display: 'flex', alignItems: 'center', gap: 8,
               }}
             >

@@ -81,7 +81,7 @@ function ModalActivacion({ reserva, onClose }) {
         {/* Pasos */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 }}>
           {[
-            { num: '1', color: '#3de8c8', rgb: '61,232,200', titulo: 'Llega a tu espacio', desc: `Dirígete al espacio ${reserva.codigoEspacio} en ${reserva.zonaNombre} dentro de tu horario reservado (puedes llegar hasta 5 min antes).` },
+            { num: '1', color: '#3de8c8', rgb: '61,232,200', titulo: 'Llega a tu espacio', desc: `Dirígete al espacio ${reserva.codigoEspacio} en ${reserva.zonaNombre} dentro de tu horario reservado (puedes llegar hasta 50 min antes).` },
             { num: '2', color: '#a78bfa', rgb: '167,139,250', titulo: 'Escanea el QR del espacio', desc: 'Busca el código QR físico pegado en tu espacio. Ábrelo con la cámara del celular — esto activará tu reserva automáticamente.' },
             { num: '3', color: '#60a5fa', rgb: '96,165,250', titulo: 'Al salir, escanea de nuevo', desc: 'Cuando termines, vuelve a escanear el mismo QR del espacio para marcar tu salida y completar la reserva.' },
           ].map(p => (

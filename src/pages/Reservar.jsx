@@ -1,7 +1,7 @@
 // src/pages/Reservar.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MapPin, Clock, Calendar, Car, CheckCircle, ChevronRight, AlertTriangle, ParkingSquare, ScanLine, Info } from 'lucide-react'
+import { MapPin, Clock, Calendar, Car, CheckCircle, ChevronRight, AlertTriangle, ParkingSquare, ScanLine, Info, Gauge, Accessibility } from 'lucide-react'
 import { C, GRAD } from '../tokens'
 import { Card }         from '../components/ui/Card'
 import { Badge }        from '../components/ui/Badge'
@@ -13,11 +13,11 @@ import { auth }         from '../utils/auth'
 const FF = "'Plus Jakarta Sans', sans-serif"
 
 const TIPO_VEHICULO_LABEL = {
-  AUTO:          { label: 'Auto',         icon: '🚗' },
-  MOTO:          { label: 'Moto',         icon: '🏍️' },
-  DISCAPACITADO: { label: 'Discapacidad', icon: '♿' },
-  ELECTRICO:     { label: 'Eléctrico',    icon: '⚡' },
+  AUTO:          { label: 'Auto',         Icon: Car },
+  MOTO:          { label: 'Moto',         Icon: Gauge },
+  DISCAPACITADO: { label: 'Discapacidad', Icon: Accessibility },
 }
+const getTipoVehiculoIcon = (tipoVehiculo) => TIPO_VEHICULO_LABEL[tipoVehiculo]?.Icon || Car
 
 
 // ── Mapa SVG ──────────────────────────────────────────────────────────────
@@ -43,11 +43,11 @@ function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
   }
 
   const colorPorEstado = {
-    DISPONIBLE:    '#3de8c8',
-    RESERVADO:     '#a259ff',
-    OCUPADO:       '#ffaa00',
-    BLOQUEADO:     '#ff4d6d',
-    MANTENIMIENTO: '#ff4d6d',
+    DISPONIBLE:    C.accent,
+    RESERVADO:     C.warn,
+    OCUPADO:       '#f97316',
+    BLOQUEADO:     C.danger,
+    MANTENIMIENTO: C.danger,
   }
 
   return (
@@ -58,7 +58,7 @@ function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
       {/* Indicador de carga de disponibilidad */}
       {idsDisponibles === null && (
         <div style={{
-          padding: '8px 14px', background: '#5b7eff10',
+          padding: '8px 14px', background: C.accent + '14',
           borderBottom: `1px solid ${C.border}`,
           display: 'flex', alignItems: 'center', gap: 7,
         }}>
@@ -115,7 +115,7 @@ function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
           const cx = x + w / 2
           const cy = y + h / 2
           const ev = estadoVisual(e)
-          const color = colorPorEstado[ev] || '#3de8c8'
+          const color = colorPorEstado[ev] || C.accent
           const disponible = ev === 'DISPONIBLE'
           const fs = Math.min(w, h) < 40 ? 7 : 9
 
@@ -179,10 +179,10 @@ function MapaReserva({ zona, espacios, onSelect, idsDisponibles }) {
         flexWrap: 'wrap',
       }}>
         {[
-          { label: 'Disponible',            color: '#3de8c8' },
-          { label: 'Reservado en este horario', color: '#a259ff' },
-          { label: 'Ocupado',               color: '#ffaa00' },
-          { label: 'Bloqueado',             color: '#ff4d6d' },
+          { label: 'Disponible',            color: C.accent },
+          { label: 'Reservado en este horario', color: C.warn },
+          { label: 'Ocupado',               color: '#f97316' },
+          { label: 'Bloqueado',             color: C.danger },
         ].map(({ label, color }) => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
@@ -276,7 +276,7 @@ function PantallaExito({ reserva, onNuevaReserva, onMisReservas }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
-            { n: '1', text: `Llega al espacio ${reserva.codigoEspacio} en ${reserva.zonaNombre} dentro de tu horario (puedes llegar hasta 5 min antes).` },
+            { n: '1', text: `Llega al espacio ${reserva.codigoEspacio} en ${reserva.zonaNombre} dentro de tu horario (puedes llegar hasta 50 min antes).` },
             { n: '2', text: 'Busca el código QR físico pegado en el espacio y escanéalo con tu cámara — eso activará la reserva.' },
             { n: '3', text: 'Al terminar, vuelve a escanear el mismo QR del espacio para marcar tu salida.' },
           ].map(p => (
@@ -393,7 +393,7 @@ export default function Reservar() {
     // El endpoint requiere tipoVehiculo para filtrar, pero necesitamos saber
     // cuáles están ocupados para CUALQUIER tipo. Por eso consultamos todos los tipos
     // y unimos los IDs disponibles. Así mostramos correctamente los RESERVADO/OCUPADO.
-    const tipos = ['AUTO', 'MOTO', 'DISCAPACITADO', 'ELECTRICO']
+    const tipos = ['AUTO', 'MOTO', 'DISCAPACITADO']
     Promise.all(
       tipos.map(tv =>
         auth.fetchAuth(
@@ -446,6 +446,7 @@ export default function Reservar() {
   const zonaSel    = zonas.find(z => z.id === zonaId)
   const franjaIObj = HORARIOS.find(h => h.codigo === franjaInicio)
   const franjaFObj = HORARIOS.find(h => h.codigo === (franjaFin || franjaInicio))
+  const TipoVehiculoIcon = getTipoVehiculoIcon(tipoVehiculo)
 
   // ── Pantalla de éxito ─────────────────────────────────────────────────
   if (paso === 4 && reservaCreada) {
@@ -511,9 +512,10 @@ export default function Reservar() {
             <div>
               <SectionLabel>Tipo de vehículo</SectionLabel>
               <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:24 }}>
-                {Object.entries(TIPO_VEHICULO_LABEL).map(([val,{label,icon}]) => (
+                {Object.entries(TIPO_VEHICULO_LABEL).map(([val,{label,Icon}]) => (
                   <button key={val} onClick={() => setTipoVehiculo(val)} style={{ padding:'10px 18px', borderRadius:10, background:tipoVehiculo===val?GRAD:C.s2, border:`1.5px solid ${tipoVehiculo===val?'transparent':C.border}`, color:tipoVehiculo===val?'#fff':C.muted, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:FF, display:'flex', alignItems:'center', gap:7 }}>
-                    <span>{icon}</span>{label}
+                    <Icon size={17} color={tipoVehiculo===val ? '#fff' : C.accent} />
+                    {label}
                   </button>
                 ))}
               </div>
@@ -621,7 +623,7 @@ export default function Reservar() {
                 [<ParkingSquare size={14}/>, zonaSel?.nombre],
                 [<Calendar size={14}/>,      fecha],
                 [<Clock size={14}/>,         franjaIObj ? `${franjaIObj.inicio} – ${(franjaFObj||franjaIObj).fin}` : ''],
-                [<Car size={14}/>,           TIPO_VEHICULO_LABEL[tipoVehiculo]?.label],
+                [<TipoVehiculoIcon size={16}/>, TIPO_VEHICULO_LABEL[tipoVehiculo]?.label],
               ].filter(([,v]) => v).map(([icon,val],i) => (
                 <div key={i} style={{ display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:`1px solid ${C.border}` }}>
                   <span style={{ color:C.accent }}>{icon}</span>

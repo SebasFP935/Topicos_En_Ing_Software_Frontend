@@ -1,17 +1,17 @@
 export const C = {
-  bg:      '#06060f',
-  surface: '#0d0e1f',
-  s2:      '#13142a',
-  border:  '#1e2040',
-  accent:  '#5b7eff',
-  purple:  '#a259ff',
-  teal:    '#3de8c8',
-  text:    '#e8eaf8',
-  muted:   '#6b7099',
-  danger:  '#ff4d6d',
-  warn:    '#ffaa00',
+  bg:      '#031428',
+  surface: '#052347',
+  s2:      '#0a2f5c',
+  border:  '#1a4b7a',
+  accent:  '#0068b7',
+  purple:  '#005b99',
+  teal:    '#f8d600',
+  text:    '#f7fbff',
+  muted:   '#9fb8d5',
+  danger:  '#ff5a67',
+  warn:    '#ffcc00',
 }
-export const GRAD = 'linear-gradient(135deg, #5b7eff 0%, #a259ff 100%)'
+export const GRAD = 'linear-gradient(135deg, #003366 0%, #005b99 58%, #0068b7 100%)'
 
 export const BLOQUES = [
   { id: 'A', label: 'Horario A', time: '7:45 - 9:45',   pct: 85 },

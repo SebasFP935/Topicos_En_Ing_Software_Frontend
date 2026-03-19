@@ -28,13 +28,14 @@ import {
   AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
   Layers, Settings2, Plus,
   LayoutGrid, ChevronDown, ChevronUp, Undo2, Redo2,
-  MousePointer2, Move, Zap,
+  MousePointer2, Move, Zap, Car, Bike, Accessibility, Gauge, ParkingSquare,
 } from 'lucide-react'
 import { C, GRAD } from '../tokens'
 import { auth } from '../utils/auth'
 
 const FF = "'Plus Jakarta Sans', sans-serif"
-const GRID = 10
+const SNAP_GRID = 1
+const VISUAL_GRID = 8
 const SNAP_ANGLE = 15      // grados al hacer snap con Shift
 const GUIDE_THRESH = 8     // px para activar línea guía
 const MIN_SIZE = 20
@@ -48,10 +49,17 @@ const TV_COLOR = {
   DISCAPACIDAD: '#ffaa00',
   ELECTRICO:    '#3de8c8',
 }
-const TV_ICON = { AUTO: '🚗', MOTO: '🏍', BICICLETA: '🚲', DISCAPACIDAD: '♿', ELECTRICO: '⚡' }
-const TIPOS = ['AUTO', 'MOTO', 'BICICLETA', 'DISCAPACIDAD', 'ELECTRICO']
+const TV_ICON = {
+  AUTO: Car,
+  MOTO: Gauge,
+  BICICLETA: Bike,
+  DISCAPACIDAD: Accessibility,
+  ELECTRICO: Zap,
+}
+const TIPOS = ['AUTO', 'MOTO', 'BICICLETA', 'DISCAPACIDAD']
+const getTipoIcon = (tipo) => TV_ICON[tipo] || ParkingSquare
 
-const snap = (v, g = GRID) => Math.round(v / g) * g
+const snap = (v, g = SNAP_GRID) => Math.round(v / g) * g
 const uid  = () => 'tmp_' + Math.random().toString(36).slice(2, 9)
 const deg  = rad => rad * 180 / Math.PI
 const rad  = d => d * Math.PI / 180
@@ -203,6 +211,12 @@ export default function OperadorEditorMapa() {
     margenX: '30', margenY: '30',
     tipo: 'AUTO', angulo: '0', reemplazar: false,
   })
+
+  useEffect(() => {
+    if (!TIPOS.includes(autoForm.tipo)) {
+      setAutoForm(prev => ({ ...prev, tipo: 'AUTO' }))
+    }
+  }, [autoForm.tipo])
 
   // ── propiedades del espacio seleccionado ───────────────────────────────
   const selArr = useMemo(() => espacios.filter(e => selIds.has(e.id)), [espacios, selIds])
@@ -607,6 +621,51 @@ export default function OperadorEditorMapa() {
     e.target.value = ''
   }
 
+  const nextCodigo = useCallback((prefijoRaw = 'A') => {
+    const prefijo = (prefijoRaw || 'A').toString().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'A'
+    const usados = new Set(espacios.map(e => (e.codigo || '').toString().trim().toUpperCase()))
+    let n = 1
+    let codigo = `${prefijo}-${String(n).padStart(2, '0')}`
+    while (usados.has(codigo)) {
+      n += 1
+      codigo = `${prefijo}-${String(n).padStart(2, '0')}`
+    }
+    return codigo
+  }, [espacios])
+
+  const handleAddManual = useCallback(() => {
+    const w = Math.max(MIN_SIZE, snap(parseFloat(autoForm.espacioAncho) || 52))
+    const h = Math.max(MIN_SIZE, snap(parseFloat(autoForm.espacioAlto) || 72))
+    const angulo = ((Math.round(parseFloat(autoForm.angulo) || 0) % 360) + 360) % 360
+    const tipoVehiculo = TIPOS.includes(autoForm.tipo) ? autoForm.tipo : 'AUTO'
+
+    let x = snap(clamp(selOne ? selOne.x + 24 : (mapaAncho / 2 - w / 2), 0, Math.max(0, mapaAncho - w)))
+    let y = snap(clamp(selOne ? selOne.y + 24 : (mapaAlto / 2 - h / 2), 0, Math.max(0, mapaAlto - h)))
+
+    for (let i = 0; i < 80; i++) {
+      const ocupado = espacios.some(e => Math.abs(e.x - x) < 4 && Math.abs(e.y - y) < 4)
+      if (!ocupado) break
+      x = snap(x + VISUAL_GRID)
+      if (x > mapaAncho - w) {
+        x = 0
+        y = snap(y + VISUAL_GRID)
+      }
+      if (y > mapaAlto - h) y = 0
+    }
+
+    const nuevo = {
+      id: uid(),
+      codigo: nextCodigo(autoForm.prefijo),
+      tipoVehiculo,
+      estado: 'DISPONIBLE',
+      x, y, w, h, angulo,
+    }
+    commitChange([...espacios, nuevo])
+    setSelIds(new Set([nuevo.id]))
+    setTool('select')
+    showToast(`Espacio ${nuevo.codigo} agregado`)
+  }, [autoForm, commitChange, espacios, mapaAlto, mapaAncho, nextCodigo, selOne, showToast])
+
   // ── Auto-generar ───────────────────────────────────────────────────────
   const handleAutoGen = () => {
     const mX = parseFloat(autoForm.margenX)      || 30
@@ -620,6 +679,7 @@ export default function OperadorEditorMapa() {
       : Math.max(1, Math.floor((mapaAncho - 2 * mX + eH) / (ew + eH)))
     const rows = autoForm.filas ? parseInt(autoForm.filas)
       : Math.max(1, Math.floor((mapaAlto - 2 * mY + eV) / (eh + eV)))
+    const tipoVehiculo = TIPOS.includes(autoForm.tipo) ? autoForm.tipo : 'AUTO'
 
     const base = autoForm.reemplazar ? [] : espacios
     const existentes = base.length
@@ -630,7 +690,7 @@ export default function OperadorEditorMapa() {
         nuevos.push({
           id: uid(),
           codigo: `${autoForm.prefijo}${String(n).padStart(2, '0')}`,
-          tipoVehiculo: autoForm.tipo,
+          tipoVehiculo,
           estado: 'DISPONIBLE',
           x: snap(mX + c * (ew + eH)),
           y: snap(mY + r * (eh + eV)),
@@ -855,20 +915,33 @@ export default function OperadorEditorMapa() {
 
           {/* Auto-generar */}
           <Section title="ESPACIOS" icon={<LayoutGrid size={12} />}>
-            <button
-              onClick={() => setShowAutoGen(v => !v)}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                width: '100%', padding: '8px 10px', borderRadius: 8,
-                background: GRAD, border: 'none', color: '#fff',
-                fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FF,
-              }}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Zap size={13} /> Auto-generar
-              </span>
-              {showAutoGen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => setShowAutoGen(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  width: '100%', padding: '8px 10px', borderRadius: 8,
+                  background: GRAD, border: 'none', color: '#fff',
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FF,
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Zap size={13} /> Auto-generar
+                </span>
+                {showAutoGen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+              <button
+                onClick={handleAddManual}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  minWidth: 112, padding: '8px 10px', borderRadius: 8,
+                  background: C.s2, border: `1px solid ${C.border}`, color: C.text,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FF,
+                }}
+              >
+                <Plus size={13} /> Manual
+              </button>
+            </div>
 
             {showAutoGen && (
               <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -908,7 +981,7 @@ export default function OperadorEditorMapa() {
                     onChange={e => setAutoForm(f => ({ ...f, tipo: e.target.value }))}
                     style={{ padding: '5px 8px', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 12, fontFamily: FF, outline: 'none' }}
                   >
-                    {TIPOS.map(t => <option key={t} value={t}>{TV_ICON[t]} {t}</option>)}
+                    {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.muted, cursor: 'pointer' }}>
@@ -942,7 +1015,15 @@ export default function OperadorEditorMapa() {
             {TIPOS.map(t => (
               <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <div style={{ width: 12, height: 12, borderRadius: 3, background: TV_COLOR[t] + '30', border: `1.5px solid ${TV_COLOR[t]}` }} />
-                <span style={{ fontSize: 11, color: C.muted, fontFamily: FF }}>{TV_ICON[t]} {t}</span>
+                {(() => {
+                  const TipoIcon = getTipoIcon(t)
+                  return (
+                    <>
+                      <TipoIcon size={12} color={TV_COLOR[t]} strokeWidth={2} />
+                      <span style={{ fontSize: 11, color: C.muted, fontFamily: FF }}>{t}</span>
+                    </>
+                  )
+                })()}
               </div>
             ))}
           </Section>
@@ -978,8 +1059,8 @@ export default function OperadorEditorMapa() {
           {/* Dot grid background */}
           <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
             <defs>
-              <pattern id="dotgrid" x={pan.x % (GRID * zoom)} y={pan.y % (GRID * zoom)} width={GRID * zoom} height={GRID * zoom} patternUnits="userSpaceOnUse">
-                <circle cx={GRID * zoom / 2} cy={GRID * zoom / 2} r={.8} fill={C.border} opacity=".6" />
+              <pattern id="dotgrid" x={pan.x % (VISUAL_GRID * zoom)} y={pan.y % (VISUAL_GRID * zoom)} width={VISUAL_GRID * zoom} height={VISUAL_GRID * zoom} patternUnits="userSpaceOnUse">
+                <circle cx={VISUAL_GRID * zoom / 2} cy={VISUAL_GRID * zoom / 2} r={.8} fill={C.border} opacity=".6" />
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#dotgrid)" />
@@ -1024,7 +1105,8 @@ export default function OperadorEditorMapa() {
               const cy       = esp.y + esp.h / 2
               const ang      = esp.angulo || 0
               const fs       = Math.min(esp.w, esp.h) < 40 ? 7 : 10
-              const icon     = TV_ICON[esp.tipoVehiculo] || '🅿'
+              const iconSize = Math.min(esp.w, esp.h) < 40 ? 10 : 14
+              const TipoIcon = getTipoIcon(esp.tipoVehiculo)
 
               // Handles de resize (en espacio local antes de rotar)
               const handles = [
@@ -1090,11 +1172,9 @@ export default function OperadorEditorMapa() {
                   />
 
                   {/* Icono tipo */}
-                  <text
-                    x={cx} y={cy - fs * .5}
-                    textAnchor="middle" fontSize={Math.min(esp.w, esp.h) < 40 ? 10 : 16}
-                    pointerEvents="none"
-                  >{icon}</text>
+                  <g transform={`translate(${cx - iconSize / 2} ${cy - iconSize / 2 - fs * 0.7})`} pointerEvents="none">
+                    <TipoIcon size={iconSize} color={color} strokeWidth={2.1} />
+                  </g>
 
                   {/* Código */}
                   <text
@@ -1182,7 +1262,9 @@ export default function OperadorEditorMapa() {
                     onChange={e => updateProp(selOne.id, 'tipoVehiculo', e.target.value)}
                     style={{ width: '100%', padding: '6px 8px', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 12, fontFamily: FF, outline: 'none' }}
                   >
-                    {TIPOS.map(t => <option key={t} value={t}>{TV_ICON[t]} {t}</option>)}
+                    {[...TIPOS, ...(TIPOS.includes(selOne.tipoVehiculo) ? [] : [selOne.tipoVehiculo])].map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -1230,8 +1312,12 @@ export default function OperadorEditorMapa() {
                 {/* Color indicator */}
                 <div style={{ padding: '8px 10px', background: (TV_COLOR[selOne.tipoVehiculo] || C.accent) + '14', border: `1px solid ${(TV_COLOR[selOne.tipoVehiculo] || C.accent)}30`, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: TV_COLOR[selOne.tipoVehiculo] || C.accent }} />
+                  {(() => {
+                    const TipoIcon = getTipoIcon(selOne.tipoVehiculo)
+                    return <TipoIcon size={14} color={TV_COLOR[selOne.tipoVehiculo] || C.accent} strokeWidth={2.1} />
+                  })()}
                   <span style={{ fontSize: 12, color: TV_COLOR[selOne.tipoVehiculo] || C.accent, fontWeight: 700, fontFamily: FF }}>
-                    {TV_ICON[selOne.tipoVehiculo]} {selOne.tipoVehiculo}
+                    {selOne.tipoVehiculo}
                   </span>
                 </div>
 

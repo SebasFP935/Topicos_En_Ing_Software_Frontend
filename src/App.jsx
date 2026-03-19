@@ -1,4 +1,4 @@
-// src/App.jsx
+﻿// src/App.jsx
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Layout }          from './components/Layout'
 import Home                from './pages/Home'
@@ -32,13 +32,14 @@ function OperadorRoute({ children }) {
 export default function App() {
   return (
     <Routes>
-      {/* Públicas */}
+      {/* PÃºblicas */}
       <Route path="/login" element={<Login />} />
 
-      {/* Escaneo QR — no requiere login */}
-      <Route path="/escanear/:codigoQr" element={<Escanear />} />
+      {/* Escaneo QR â€” no requiere login */}
+      {/* Escaneo QR fÃ­sico (si no hay sesiÃ³n, la vista redirige a login) */}
+        <Route path="/escanear/:codigoQrFisico" element={<Escanear />} />
 
-      {/* Protegidas — dentro del Layout */}
+      {/* Protegidas â€” dentro del Layout */}
       <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route path="/"         element={<Home />} />
         <Route path="/reservar" element={<Reservar />} />
@@ -68,3 +69,4 @@ export default function App() {
     </Routes>
   )
 }
+

@@ -20,27 +20,30 @@ const NAV_ADMIN = [
 ]
 
 const NAV_OPERADOR = [
-  { to: '/operador',       Icon: Wrench, label: 'Panel Operador'  },
+  { to: '/operador',       Icon: Wrench, label: 'Panel Operador', end: true },
   { to: '/operador/zonas', Icon: Map,    label: 'Gestionar Zonas' },
 ]
 
-function NavItem({ to, Icon, label }) {
+function NavItem({ to, Icon, label, end = false }) {
   return (
     <NavLink
       to={to}
-      end={to === '/'}
+      end={to === '/' || end}
       style={({ isActive }) => ({
         display: 'flex', alignItems: 'center', gap: 12,
         padding: '10px 14px', borderRadius: 12,
-        color: isActive ? C.accent : C.muted,
-        background: isActive ? C.accent + '14' : 'transparent',
-        transition: 'all .15s', fontSize: 14, fontWeight: 600,
+        color: isActive ? C.text : C.muted,
+        background: isActive
+          ? 'linear-gradient(90deg, rgba(0,104,183,.38) 0%, rgba(0,104,183,.15) 100%)'
+          : 'transparent',
+        border: `1px solid ${isActive ? '#2e78b8' : 'transparent'}`,
+        transition: 'all .2s', fontSize: 14, fontWeight: 600,
         fontFamily: FF, textDecoration: 'none',
       })}
     >
       {({ isActive }) => (
         <>
-          <Icon size={18} strokeWidth={isActive ? 2.5 : 1.8} />
+          <Icon size={18} strokeWidth={isActive ? 2.5 : 1.8} color={isActive ? C.teal : C.muted} />
           {label}
         </>
       )}
@@ -74,17 +77,18 @@ export function Sidebar() {
 
   return (
     <aside style={{
-      width: 220, minHeight: '100vh', background: C.surface,
+      width: 240, minHeight: '100vh', background: 'linear-gradient(180deg, #052347 0%, #041d3a 100%)',
       borderRight: `1px solid ${C.border}`, display: 'flex',
       flexDirection: 'column', padding: '24px 0',
       position: 'sticky', top: 0, flexShrink: 0,
+      boxShadow: '8px 0 26px rgba(0,0,0,.18)',
     }}>
       {/* Logo */}
       <div style={{ padding: '0 20px 24px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 36, height: 36, borderRadius: 10, background: GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <ParkingSquare size={20} color="#fff" />
         </div>
-        <span style={{ fontSize: 18, fontWeight: 800, fontFamily: FF, background: GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+        <span style={{ fontSize: 18, fontWeight: 800, fontFamily: FF, color: C.text }}>
           NoParking
         </span>
       </div>
@@ -114,7 +118,7 @@ export function Sidebar() {
 
       {/* Usuario + Logout */}
       <div style={{ padding: '16px 10px 0', borderTop: `1px solid ${C.border}`, margin: '0 10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: C.s2, marginBottom: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: 'linear-gradient(180deg, rgba(10,47,92,.92) 0%, rgba(6,35,71,.92) 100%)', marginBottom: 6 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: FF }}>
             {user?.nombre?.[0]}{user?.apellido?.[0]}
           </div>
@@ -127,7 +131,7 @@ export function Sidebar() {
             </p>
           </div>
         </div>
-        <button onClick={handleLogout} style={{ width: '100%', padding: '9px 14px', borderRadius: 10, background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: FF, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button onClick={handleLogout} style={{ width: '100%', padding: '9px 14px', borderRadius: 10, background: '#062953', border: `1px solid ${C.border}`, color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: FF, display: 'flex', alignItems: 'center', gap: 8 }}>
           <LogOut size={15} /> Cerrar sesión
         </button>
       </div>
