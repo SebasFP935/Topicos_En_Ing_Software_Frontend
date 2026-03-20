@@ -363,7 +363,7 @@ export default function Login() {
     try {
       const res  = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: auth.publicHeaders(),
         body: JSON.stringify({ email, password }),
       })
       const data = await res.json()
@@ -390,7 +390,7 @@ export default function Login() {
     try {
       const res  = await fetch(`${API_BASE}/api/auth/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: auth.publicHeaders(),
         body: JSON.stringify({
           nombre:          reg.nombre,
           apellido:        reg.apellido,

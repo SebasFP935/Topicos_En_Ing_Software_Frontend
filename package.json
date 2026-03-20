@@ -5,14 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run build:github",
+    "build:github": "vite build && node ./scripts/prepare-github-pages.mjs",
+    "build:vercel": "vite build --base=/",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "lucide-react": "^0.263.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-ga4": "^2.1.0",
     "react-router-dom": "^6.22.0"
   },
   "devDependencies": {
