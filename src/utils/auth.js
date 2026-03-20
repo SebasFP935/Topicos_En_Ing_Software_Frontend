@@ -3,6 +3,7 @@ const TOKEN_KEY   = 'np_token'
 const REFRESH_KEY = 'np_refresh'
 const USER_KEY    = 'np_user'
 const API_BASE = import.meta.env.VITE_API_URL ?? ''
+const APP_BASE = import.meta.env.BASE_URL ?? '/'
 const BASE_HEADERS = {
   'Content-Type': 'application/json',
   'ngrok-skip-browser-warning': 'true',
@@ -73,7 +74,7 @@ export const auth = {
     const ok = await this.tryRefresh()
     if (!ok) {
       this.clear()
-      window.location.href = '/login'
+      window.location.href = `${APP_BASE}login`
       return res
     }
     return fetch(fullUrl, { 
