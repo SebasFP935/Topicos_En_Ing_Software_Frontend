@@ -3,6 +3,10 @@ const TOKEN_KEY   = 'np_token'
 const REFRESH_KEY = 'np_refresh'
 const USER_KEY    = 'np_user'
 const API_BASE = import.meta.env.VITE_API_URL ?? ''
+const BASE_HEADERS = {
+  'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true',
+}
 
 export const auth = {
   save(response) {
@@ -31,11 +35,15 @@ export const auth = {
     localStorage.removeItem(USER_KEY)
   },
 
+  publicHeaders() {
+    return { ...BASE_HEADERS }
+  },
+
   headers() {
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.token()}`,
-    }
+    const token = this.token()
+    return token
+      ? { ...BASE_HEADERS, 'Authorization': `Bearer ${token}` }
+      : this.publicHeaders()
   },
 
   async tryRefresh() {
@@ -44,7 +52,7 @@ export const auth = {
     try {
       const res = await fetch(`${API_BASE}/api/auth/refresh`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.publicHeaders(),
         body:    JSON.stringify({ refreshToken: rt }),
       })
       if (!res.ok) return false

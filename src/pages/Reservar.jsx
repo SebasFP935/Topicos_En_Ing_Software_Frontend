@@ -445,14 +445,14 @@ export default function Reservar() {
 
   const sedeSel    = sedes.find(s => s.id === sedeId)
   const zonaSel    = zonas.find(z => z.id === zonaId)
-  const zonaNombre2 = zonas.find(z2 => z.id === zonaId)
+  const zonaNombre = zonaSel?.nombre || reservaCreada?.zonaNombre || ''
   const franjaIObj = HORARIOS.find(h => h.codigo === franjaInicio)
   const franjaFObj = HORARIOS.find(h => h.codigo === (franjaFin || franjaInicio))
   const TipoVehiculoIcon = getTipoVehiculoIcon(tipoVehiculo)
 
   // ── Pantalla de éxito ─────────────────────────────────────────────────
   if (paso === 4 && reservaCreada) {
-    trackEvent('Reservas', 'reserva_creada', zonaNombre2)
+    trackEvent('Reservas', 'reserva_creada', zonaNombre)
     return (
       <PantallaExito
         reserva={reservaCreada}

@@ -151,9 +151,10 @@ function Field({ label, required, children, half }) {
   )
 }
 
-function Input({ label, type = 'text', value, onChange, placeholder, required, half }) {
+function Input({ label, type = 'text', value, onChange, placeholder, required, half, autoComplete }) {
   const [show, setShow] = useState(false)
   const isPass = type === 'password'
+  const resolvedAutoComplete = autoComplete ?? (isPass ? 'current-password' : undefined)
   return (
     <Field label={label} required={required} half={half}>
       <div style={{ position: 'relative' }}>
@@ -163,6 +164,7 @@ function Input({ label, type = 'text', value, onChange, placeholder, required, h
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
+          autoComplete={resolvedAutoComplete}
           style={{ paddingRight: isPass ? 44 : 16 }}
         />
         {isPass && (
@@ -363,7 +365,7 @@ export default function Login() {
     try {
       const res  = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: auth.publicHeaders(),
         body: JSON.stringify({ email, password }),
       })
       const data = await res.json()
@@ -390,7 +392,7 @@ export default function Login() {
     try {
       const res  = await fetch(`${API_BASE}/api/auth/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: auth.publicHeaders(),
         body: JSON.stringify({
           nombre:          reg.nombre,
           apellido:        reg.apellido,
@@ -519,8 +521,8 @@ export default function Login() {
               {tab === 'login' && (
                 <form onSubmit={handleLogin} className="anim-fade-slide-d2">
                   <Input label="Email" type="email" value={email}
-                    onChange={setEmail} placeholder="tu@upb.edu" required />
-                  <Input label="Contraseña" type="password" value={password}
+                    onChange={setEmail} placeholder="tu@upb.edu" autoComplete="username" required />
+                  <Input label="Contraseña" type="password" value={password} autoComplete="current-password"
                     onChange={setPassword} placeholder="••••••••" required />
 
                   <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'flex-end' }}>
@@ -568,15 +570,15 @@ export default function Login() {
                     </p>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
-                      <Input label="Nombre" value={reg.nombre}
+                      <Input label="Nombre" value={reg.nombre} autoComplete="given-name"
                         onChange={v => setR('nombre', v)} placeholder="Juan" required half />
-                      <Input label="Apellido" value={reg.apellido}
+                      <Input label="Apellido" value={reg.apellido} autoComplete="family-name"
                         onChange={v => setR('apellido', v)} placeholder="Pérez" required half />
                     </div>
 
-                    <Input label="Email" type="email" value={reg.email}
+                    <Input label="Email" type="email" value={reg.email} autoComplete="username"
                       onChange={v => setR('email', v)} placeholder="tu@upb.edu" required />
-                    <Input label="Contraseña" type="password" value={reg.password}
+                    <Input label="Contraseña" type="password" value={reg.password} autoComplete="new-password"
                       onChange={v => setR('password', v)} placeholder="Mínimo 6 caracteres" required />
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
@@ -586,7 +588,7 @@ export default function Login() {
                         onChange={v => setR('numeroDocumento', v)} placeholder="12345678" half />
                     </div>
 
-                    <Input label="Teléfono" value={reg.telefono}
+                    <Input label="Teléfono" value={reg.telefono} autoComplete="tel"
                       onChange={v => setR('telefono', v)} placeholder="+591 7..." />
 
                     {/* Vehículo */}
