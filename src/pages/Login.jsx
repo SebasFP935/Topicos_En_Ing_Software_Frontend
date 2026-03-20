@@ -5,7 +5,7 @@ import { Eye, EyeOff, ParkingSquare, ArrowRight, Car, Check } from 'lucide-react
 import { auth } from '../utils/auth'
 
 const TIPOS_DOC = ['CI', 'PASAPORTE', 'NIT', 'OTRO']
-const API_BASE = import.meta.env.VITE_API_URL ?? ''
+const API_BASE = import.meta.env.DEV ? (import.meta.env.VITE_API_URL ?? '') : ''
 
 // ── Colores propios (no depende de tokens globales para ser autónomo) ───────
 const BG       = '#031428'
