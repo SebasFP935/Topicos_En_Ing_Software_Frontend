@@ -20,7 +20,7 @@ function buildTargetUrl(req, apiBase) {
   Object.entries(req.query).forEach(([key, value]) => {
     if (key === 'path') return
     if (Array.isArray(value)) {
-      value.forEach(v => target.searchParams.append(key, v))
+      value.forEach((entry) => target.searchParams.append(key, entry))
       return
     }
     if (value !== undefined) {
@@ -40,7 +40,6 @@ function buildHeaders(req) {
   })
 
   headers.set('ngrok-skip-browser-warning', 'true')
-
   return headers
 }
 
