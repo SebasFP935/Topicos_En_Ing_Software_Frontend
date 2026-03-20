@@ -12,7 +12,6 @@ import { Card } from '../components/ui/Card'
 import { GradText } from '../components/ui/GradText'
 import { SectionLabel } from '../components/ui/SectionLabel'
 import { auth } from '../utils/auth'
-import { trackEvent } from '../utils/analytics'
 
 const FF = "'Plus Jakarta Sans', sans-serif"
 
@@ -486,9 +485,8 @@ export default function AdminDashboard() {
   }, [])
 
   useEffect(() => {
-  cargarDatos()
-  trackEvent('Admin', 'dashboard_visit')
-}, [cargarDatos])
+    cargarDatos()
+  }, [cargarDatos])
 
   /* ── filtros ── */
   const reservasFiltradas = reservas.filter(r =>

@@ -9,7 +9,6 @@ import { GradText }     from '../components/ui/GradText'
 import { SectionLabel } from '../components/ui/SectionLabel'
 import { Button }       from '../components/ui/Button'
 import { auth }         from '../utils/auth'
-import { trackEvent } from '../utils/analytics'
 
 const FF = "'Plus Jakarta Sans', sans-serif"
 
@@ -452,7 +451,6 @@ export default function Reservar() {
 
   // ── Pantalla de éxito ─────────────────────────────────────────────────
   if (paso === 4 && reservaCreada) {
-    trackEvent('Reservas', 'reserva_creada', zonaNombre)
     return (
       <PantallaExito
         reserva={reservaCreada}

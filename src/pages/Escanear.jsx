@@ -8,7 +8,6 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { XCircle, Clock, ParkingSquare, LogIn, LogOut, AlertTriangle } from 'lucide-react'
 import { C } from '../tokens'
 import { auth } from '../utils/auth'
-import { trackEvent } from '../utils/analytics'
 
 const FF = "'Plus Jakarta Sans', sans-serif"
 const fmtHora = iso => iso ? new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''
@@ -38,7 +37,6 @@ export default function Escanear() {
 
     const ejecutarEscaneo = async () => {
       try {
-        trackEvent('QR', 'escaneo_iniciado', codigoQrFisico)
         const res = await auth.fetchAuth(
           `/api/reservas/escanear/${encodeURIComponent(codigoQrFisico)}`,
           { signal: controller.signal }
@@ -56,7 +54,6 @@ export default function Escanear() {
         } else {
           setEstado('ok')
           setResultado(data)
-          trackEvent('QR', 'escaneo_exitoso', data.accion)
         }
       } catch {
         if (cancelado || controller.signal.aborted) return

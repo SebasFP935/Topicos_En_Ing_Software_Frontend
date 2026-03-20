@@ -7,7 +7,6 @@ import { Badge }        from '../components/ui/Badge'
 import { GradText }     from '../components/ui/GradText'
 import { SectionLabel } from '../components/ui/SectionLabel'
 import { auth }         from '../utils/auth'
-import { trackEvent } from '../utils/analytics'
 
 const FF = "'Plus Jakarta Sans', sans-serif"
 
@@ -272,7 +271,6 @@ export default function MisReservas() {
     if (res.ok) {
       const updated = await res.json()
       setReservas(prev => prev.map(r => r.id === id ? updated : r))
-      trackEvent('Reservas', 'reserva_cancelada', updated.estado)
     } else {
       const err = await res.json().catch(() => ({}))
       alert(err.mensaje || 'No se pudo cancelar.')
