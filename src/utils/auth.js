@@ -2,7 +2,7 @@
 const TOKEN_KEY   = 'np_token'
 const REFRESH_KEY = 'np_refresh'
 const USER_KEY    = 'np_user'
-const API_BASE = import.meta.env.DEV ? (import.meta.env.VITE_API_URL ?? '') : ''
+const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 const BASE_HEADERS = {
   'Content-Type': 'application/json',
   'ngrok-skip-browser-warning': 'true',
