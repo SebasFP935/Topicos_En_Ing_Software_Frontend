@@ -2,6 +2,7 @@
 const TOKEN_KEY   = 'np_token'
 const REFRESH_KEY = 'np_refresh'
 const USER_KEY    = 'np_user'
+const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
 export const auth = {
   save(response) {
@@ -41,7 +42,7 @@ export const auth = {
     const rt = this.refreshToken()
     if (!rt) return false
     try {
-      const res = await fetch('/api/auth/refresh', {
+      const res = await fetch(`${API_BASE}/api/auth/refresh`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ refreshToken: rt }),
@@ -55,7 +56,8 @@ export const auth = {
   },
 
   async fetchAuth(url, options = {}) {
-    const res = await fetch(url, {
+    const fullUrl = `${API_BASE}${url}`
+    const res = await fetch(fullUrl, {
       ...options,
       headers: { ...this.headers(), ...(options.headers || {}) },
     })
@@ -66,7 +68,7 @@ export const auth = {
       window.location.href = '/login'
       return res
     }
-    return fetch(url, {
+    return fetch(fullUrl, { 
       ...options,
       headers: { ...this.headers(), ...(options.headers || {}) },
     })
