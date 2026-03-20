@@ -7,6 +7,7 @@ import { Badge }        from '../components/ui/Badge'
 import { GradText }     from '../components/ui/GradText'
 import { SectionLabel } from '../components/ui/SectionLabel'
 import { auth }         from '../utils/auth'
+import { trackEvent } from '../utils/analytics'
 
 const FF = "'Plus Jakarta Sans', sans-serif"
 
@@ -264,23 +265,24 @@ export default function MisReservas() {
   const historial = reservas.filter(r => ['COMPLETADA', 'CANCELADA', 'NO_SHOW'].includes(r.estado))
 
   const handleCancelar = async (id) => {
-    if (!confirm('¿Cancelar esta reserva?')) return
-    setCargandoId(id)
-    try {
-      const res = await auth.fetchAuth(`/api/reservas/${id}/cancelar`, { method: 'PATCH' })
-      if (res.ok) {
-        const updated = await res.json()
-        setReservas(prev => prev.map(r => r.id === id ? updated : r))
-      } else {
-        const err = await res.json().catch(() => ({}))
-        alert(err.mensaje || 'No se pudo cancelar.')
-      }
-    } catch {
-      alert('Error de conexión.')
-    } finally {
-      setCargandoId(null)
+  if (!confirm('¿Cancelar esta reserva?')) return
+  setCargandoId(id)
+  try {
+    const res = await auth.fetchAuth(`/api/reservas/${id}/cancelar`, { method: 'PATCH' })
+    if (res.ok) {
+      const updated = await res.json()
+      setReservas(prev => prev.map(r => r.id === id ? updated : r))
+      trackEvent('Reservas', 'reserva_cancelada', updated.estado)
+    } else {
+      const err = await res.json().catch(() => ({}))
+      alert(err.mensaje || 'No se pudo cancelar.')
     }
+  } catch {
+    alert('Error de conexión.')
+  } finally {
+    setCargandoId(null)
   }
+}
 
   const lista = tab === 'activas' ? activas : historial
 

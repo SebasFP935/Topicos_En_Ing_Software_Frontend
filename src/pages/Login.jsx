@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff, ParkingSquare, ArrowRight, Car, Check } from 'lucide-react'
 import { auth } from '../utils/auth'
+import { trackEvent } from '../utils/analytics'
 
 const TIPOS_DOC = ['CI', 'PASAPORTE', 'NIT', 'OTRO']
 
@@ -365,8 +366,9 @@ export default function Login() {
         body: JSON.stringify({ email, password }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.mensaje || 'Credenciales incorrectas.'); return }
+      if (!res.ok) { setError(data.mensaje || 'Credenciales incorrectas.'); trackEvent('Auth', 'login_error'); return }
       auth.save(data)
+      trackEvent('Auth', 'login_success', data.rol)
       navigate(typeof redirectTo === 'string' && redirectTo.startsWith('/') ? redirectTo : '/', { replace: true })
     } catch {
       setError('No se pudo conectar con el servidor.')

@@ -9,6 +9,7 @@ import { GradText }     from '../components/ui/GradText'
 import { SectionLabel } from '../components/ui/SectionLabel'
 import { Button }       from '../components/ui/Button'
 import { auth }         from '../utils/auth'
+import { trackEvent } from '../utils/analytics'
 
 const FF = "'Plus Jakarta Sans', sans-serif"
 
@@ -228,7 +229,7 @@ function Pasos({ actual }) {
 // ── Pantalla de éxito ────────────────────────────────────────────────────
 function PantallaExito({ reserva, onNuevaReserva, onMisReservas }) {
   const fmtH = dt => new Date(dt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
-
+  
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', padding: '48px 24px', textAlign: 'center', fontFamily: FF }}>
       {/* Ícono éxito */}
@@ -444,12 +445,14 @@ export default function Reservar() {
 
   const sedeSel    = sedes.find(s => s.id === sedeId)
   const zonaSel    = zonas.find(z => z.id === zonaId)
+  const zonaNombre2 = zonas.find(z2 => z.id === zonaId)
   const franjaIObj = HORARIOS.find(h => h.codigo === franjaInicio)
   const franjaFObj = HORARIOS.find(h => h.codigo === (franjaFin || franjaInicio))
   const TipoVehiculoIcon = getTipoVehiculoIcon(tipoVehiculo)
 
   // ── Pantalla de éxito ─────────────────────────────────────────────────
   if (paso === 4 && reservaCreada) {
+    trackEvent('Reservas', 'reserva_creada', zonaNombre2)
     return (
       <PantallaExito
         reserva={reservaCreada}

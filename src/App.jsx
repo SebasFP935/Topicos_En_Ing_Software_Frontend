@@ -12,6 +12,19 @@ import OperadorDashboard   from './pages/OperadorDashboard'
 import OperadorZonas       from './pages/OperadorZonas'
 import OperadorEditorMapa  from './pages/OperadorEditorMapa'
 import { auth }            from './utils/auth'
+import { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
+import { initGA, trackPage } from './utils/analytics'
+
+initGA()
+
+function RouteTracker() {
+  const location = useLocation()
+  useEffect(() => {
+    trackPage(location.pathname + location.search)
+  }, [location])
+  return null
+}
 
 function PrivateRoute({ children }) {
   return auth.isAuthenticated() ? children : <Navigate to="/login" replace />
@@ -31,42 +44,44 @@ function OperadorRoute({ children }) {
 
 export default function App() {
   return (
-    <Routes>
-      {/* PÃºblicas */}
-      <Route path="/login" element={<Login />} />
+    <>
+      <RouteTracker />
+      <Routes>
+        {/* Públicas */}
+        <Route path="/login" element={<Login />} />
 
-      {/* Escaneo QR â€” no requiere login */}
-      {/* Escaneo QR fÃ­sico (si no hay sesiÃ³n, la vista redirige a login) */}
+        {/* Escaneo QR */}
         <Route path="/escanear/:codigoQrFisico" element={<Escanear />} />
 
-      {/* Protegidas â€” dentro del Layout */}
-      <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
-        <Route path="/"         element={<Home />} />
-        <Route path="/reservar" element={<Reservar />} />
-        <Route path="/reservas" element={<MisReservas />} />
+        {/* Protegidas — dentro del Layout */}
+        <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
+          <Route path="/"         element={<Home />} />
+          <Route path="/reservar" element={<Reservar />} />
+          <Route path="/reservas" element={<MisReservas />} />
 
-        {/* Admin */}
-        <Route path="/admin" element={
-          <AdminRoute><AdminDashboard /></AdminRoute>
-        } />
-        <Route path="/admin/zonas/:zonaId/editor" element={
-          <AdminRoute><EditorMapa /></AdminRoute>
-        } />
+          {/* Admin */}
+          <Route path="/admin" element={
+            <AdminRoute><AdminDashboard /></AdminRoute>
+          } />
+          <Route path="/admin/zonas/:zonaId/editor" element={
+            <AdminRoute><EditorMapa /></AdminRoute>
+          } />
 
-        {/* Operador */}
-        <Route path="/operador" element={
-          <OperadorRoute><OperadorDashboard /></OperadorRoute>
-        } />
-        <Route path="/operador/zonas" element={
-          <OperadorRoute><OperadorZonas /></OperadorRoute>
-        } />
-        <Route path="/operador/zonas/:zonaId/editor" element={
-          <OperadorRoute><OperadorEditorMapa /></OperadorRoute>
-        } />
-      </Route>
+          {/* Operador */}
+          <Route path="/operador" element={
+            <OperadorRoute><OperadorDashboard /></OperadorRoute>
+          } />
+          <Route path="/operador/zonas" element={
+            <OperadorRoute><OperadorZonas /></OperadorRoute>
+          } />
+          <Route path="/operador/zonas/:zonaId/editor" element={
+            <OperadorRoute><OperadorEditorMapa /></OperadorRoute>
+          } />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   )
 }
 
