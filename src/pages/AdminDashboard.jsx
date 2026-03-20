@@ -7,13 +7,12 @@ import {
   X, Pencil, ShieldCheck, UserCog, Save, ChevronDown,
   ToggleLeft, ToggleRight, AlertTriangle,
 } from 'lucide-react'
-import { C, GRAD } from '../tokens'
+import { C, GRAD, MAIN_TITLE_SIZE } from '../tokens'
 import { Card } from '../components/ui/Card'
-import { GradText } from '../components/ui/GradText'
 import { SectionLabel } from '../components/ui/SectionLabel'
 import { auth } from '../utils/auth'
 
-const FF = "'Plus Jakarta Sans', sans-serif"
+const FF = 'var(--ff-apple)'
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 const fmtHora  = iso => iso ? new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '—'
@@ -21,15 +20,15 @@ const fmtFecha = iso => iso ? new Date(iso).toLocaleDateString('es-BO', { day: '
 const initials = name => name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?'
 
 const ESTADO_META = {
-  ACTIVA:     { label: 'Activa',     color: '#3de8c8', bg: '#3de8c814' },
-  COMPLETADA: { label: 'Completada', color: '#5b7eff', bg: '#5b7eff14' },
-  CANCELADA:  { label: 'Cancelada',  color: '#ff4d6d', bg: '#ff4d6d14' },
-  NO_SHOW:    { label: 'No show',    color: '#ffaa00', bg: '#ffaa0014' },
+  ACTIVA:     { label: 'Activa',     color: '#0068b7', bg: '#0068b714' },
+  COMPLETADA: { label: 'Completada', color: '#7ba5ff', bg: '#7ba5ff14' },
+  CANCELADA:  { label: 'Cancelada',  color: '#0068b7', bg: '#0068b714' },
+  NO_SHOW:    { label: 'No show',    color: '#ffcc00', bg: '#ffcc0014' },
 }
 
 const ROL_META = {
-  USUARIO:  { label: 'Usuario',  color: '#5b7eff', bg: '#5b7eff14' },
-  OPERADOR: { label: 'Operador', color: '#ffaa00', bg: '#ffaa0014' },
+  USUARIO:  { label: 'Usuario',  color: '#7ba5ff', bg: '#7ba5ff14' },
+  OPERADOR: { label: 'Operador', color: '#ffcc00', bg: '#ffcc0014' },
 }
 
 const TIPO_DOC_OPTS = ['CI', 'PASAPORTE', 'CARNET_EXTRANJERO']
@@ -84,7 +83,6 @@ const inputSt = {
   color: C.text, fontSize: 13, fontFamily: FF,
   boxSizing: 'border-box', outline: 'none',
 }
-
 /* ── Modal de edición de usuario ──────────────────────────────────── */
 function ModalEditarUsuario({ usuario, onClose, onSaved }) {
   const [form, setForm] = useState({
@@ -128,8 +126,8 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
           body: JSON.stringify(body),
         })
         if (!r.ok) {
-          const err = await r.json().catch(() => ({}))
-          throw new Error(err.mensaje || 'Error al actualizar datos')
+          const err = await auth.readJson(r, {})
+          throw new Error(auth.message(err?.mensaje, 'Error al actualizar datos'))
         }
       }
 
@@ -141,15 +139,15 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
           body: JSON.stringify({ rol: rolSeleccionado }),
         })
         if (!rr.ok) {
-          const err = await rr.json().catch(() => ({}))
-          throw new Error(err.mensaje || 'Error al cambiar rol')
+          const err = await auth.readJson(rr, {})
+          throw new Error(auth.message(err?.mensaje, 'Error al cambiar rol'))
         }
       }
 
       setFeedback({ tipo: 'ok', msg: 'Cambios guardados correctamente.' })
       setTimeout(() => { onSaved(); onClose() }, 900)
     } catch (e) {
-      setFeedback({ tipo: 'err', msg: e.message })
+      setFeedback({ tipo: 'err', msg: auth.message(e?.message, 'Error al guardar cambios') })
     } finally {
       setSaving(false)
     }
@@ -214,7 +212,7 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
             >
               <t.Icon size={14} /> {t.label}
               {t.id === 'rol' && rolCambio && (
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ffaa00', flexShrink: 0 }} />
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ffcc00', flexShrink: 0 }} />
               )}
             </button>
           ))}
@@ -292,7 +290,7 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
                 </div>
                 <button
                   onClick={() => set('activo', !form.activo)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: form.activo ? '#3de8c8' : C.muted, display: 'flex', padding: 4 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: form.activo ? '#0068b7' : C.muted, display: 'flex', padding: 4 }}
                 >
                   {form.activo
                     ? <ToggleRight size={34} strokeWidth={1.5} />
@@ -317,14 +315,14 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
                   title: 'Usuario estándar',
                   desc: 'Puede reservar espacios y ver su historial. Sin acceso al panel de operaciones.',
                   Icon: Users,
-                  color: '#5b7eff',
+                  color: '#7ba5ff',
                 },
                 {
                   id: 'OPERADOR',
                   title: 'Operador',
                   desc: 'Accede al panel de operaciones, gestiona check-in/out y edita mapas de zonas.',
                   Icon: UserCheck,
-                  color: '#ffaa00',
+                  color: '#ffcc00',
                 },
               ].map(r => {
                 const active = rolSeleccionado === r.id
@@ -377,10 +375,10 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '10px 14px', borderRadius: 10,
-                  background: '#ffaa0012', border: '1px solid #ffaa0030',
+                  background: '#ffcc0012', border: '1px solid #ffcc0030',
                 }}>
-                  <AlertTriangle size={14} color="#ffaa00" />
-                  <p style={{ fontSize: 12, color: '#ffaa00', fontFamily: FF }}>
+                  <AlertTriangle size={14} color="#ffcc00" />
+                  <p style={{ fontSize: 12, color: '#ffcc00', fontFamily: FF }}>
                     El rol cambiará de <strong>{usuario.rol}</strong> a <strong>{rolSeleccionado}</strong> al guardar.
                   </p>
                 </div>
@@ -397,9 +395,9 @@ function ModalEditarUsuario({ usuario, onClose, onSaved }) {
           {feedback && (
             <div style={{
               padding: '9px 14px', borderRadius: 9,
-              background: feedback.tipo === 'ok' ? '#3de8c814' : '#ff4d6d12',
-              border: `1px solid ${feedback.tipo === 'ok' ? '#3de8c830' : '#ff4d6d30'}`,
-              color: feedback.tipo === 'ok' ? '#3de8c8' : '#ff4d6d',
+              background: feedback.tipo === 'ok' ? '#0068b714' : '#0068b712',
+              border: `1px solid ${feedback.tipo === 'ok' ? '#0068b730' : '#0068b730'}`,
+              color: feedback.tipo === 'ok' ? '#0068b7' : '#0068b7',
               fontSize: 12, fontFamily: FF,
             }}>
               {feedback.msg}
@@ -461,15 +459,15 @@ export default function AdminDashboard() {
     try {
       const r = await auth.fetchAuth('/api/admin/dashboard')
       if (!r.ok) throw new Error('Error al cargar métricas')
-      setKpis(await r.json())
-    } catch (e) { setError(e.message) }
+      setKpis(await auth.readJson(r, {}))
+    } catch (e) { setError(auth.message(e?.message, 'Error al cargar métricas')) }
     finally { setLoadingKpis(false) }
 
     setLoadingRes(true)
     try {
       const r = await auth.fetchAuth('/api/admin/reservas/hoy')
       if (!r.ok) throw new Error()
-      setReservas(await r.json())
+      setReservas(await auth.readJson(r, []))
     } catch { setReservas([]) }
     finally { setLoadingRes(false) }
 
@@ -477,16 +475,14 @@ export default function AdminDashboard() {
     try {
       const r = await auth.fetchAuth('/api/usuarios/gestion')
       if (!r.ok) throw new Error()
-      setUsuarios(await r.json())
+      setUsuarios(await auth.readJson(r, []))
     } catch { setUsuarios([]) }
     finally { setLoadingUsu(false) }
 
     setLastUpdate(new Date())
   }, [])
 
-  useEffect(() => {
-    cargarDatos()
-  }, [cargarDatos])
+  useEffect(() => { cargarDatos() }, [cargarDatos])
 
   /* ── filtros ── */
   const reservasFiltradas = reservas.filter(r =>
@@ -513,10 +509,11 @@ export default function AdminDashboard() {
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '36px 28px 64px', fontFamily: FF }}>
+      <div style={{ borderRadius: 28, border: `1px solid ${C.border}`, background: 'linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.02) 45%, rgba(255,255,255,.01)), #07090d', padding: '28px 22px 30px', boxShadow: '0 22px 52px rgba(0,0,0,.36)' }}>
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32, flexWrap: 'wrap', gap: 12 }}>
-        <h1 style={{ fontSize: 30, fontWeight: 800 }}><GradText>Dashboard Admin</GradText></h1>
+        <h1 style={{ fontSize: MAIN_TITLE_SIZE, fontWeight: 800, color: C.text, letterSpacing: '-.03em' }}>Dashboard Admin</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 11, color: C.muted }}>
             Actualizado: {lastUpdate.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
@@ -527,26 +524,26 @@ export default function AdminDashboard() {
           >
             <RefreshCw size={13} /> Actualizar
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#3de8c814', border: '1px solid #3de8c830', borderRadius: 100, padding: '6px 14px' }}>
-            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3de8c8' }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#3de8c8', fontFamily: FF }}>En vivo</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#0068b714', border: '1px solid #0068b730', borderRadius: 100, padding: '6px 14px' }}>
+            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#0068b7' }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#0068b7', fontFamily: FF }}>En vivo</span>
           </div>
         </div>
       </div>
 
       {error && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#ff4d6d14', border: '1px solid #ff4d6d30', borderRadius: 12, padding: '12px 16px', marginBottom: 24 }}>
-          <AlertCircle size={16} color="#ff4d6d" />
-          <span style={{ fontSize: 13, color: '#ff4d6d', fontWeight: 500 }}>{error}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#0068b714', border: '1px solid #0068b730', borderRadius: 12, padding: '12px 16px', marginBottom: 24 }}>
+          <AlertCircle size={16} color="#0068b7" />
+          <span style={{ fontSize: 13, color: '#0068b7', fontWeight: 500 }}>{error}</span>
         </div>
       )}
 
       {/* ── KPIs ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 32 }}>
-        <KpiCard label="Reservas hoy"    value={kpis?.reservasHoy}     sub={`${activas} activas ahora`}     color="#5b7eff" Icon={CalendarCheck} loading={loadingKpis} />
-        <KpiCard label="Total usuarios"  value={kpis?.totalUsuarios}   sub="Registrados en el sistema"      color="#a259ff" Icon={Users}         loading={loadingKpis} />
-        <KpiCard label="Operadores"      value={kpis?.totalOperadores} sub="Con acceso operativo"           color="#ffaa00" Icon={UserCheck}     loading={loadingKpis} />
-        <KpiCard label="Completadas hoy" value={completadas}            sub={`${canceladas} canceladas`}    color="#3de8c8" Icon={CheckCircle}   loading={loadingRes}  />
+        <KpiCard label="Reservas hoy"    value={kpis?.reservasHoy}     sub={`${activas} activas ahora`}     color="#7ba5ff" Icon={CalendarCheck} loading={loadingKpis} />
+        <KpiCard label="Total usuarios"  value={kpis?.totalUsuarios}   sub="Registrados en el sistema"      color="#8d6bff" Icon={Users}         loading={loadingKpis} />
+        <KpiCard label="Operadores"      value={kpis?.totalOperadores} sub="Con acceso operativo"           color="#ffcc00" Icon={UserCheck}     loading={loadingKpis} />
+        <KpiCard label="Completadas hoy" value={completadas}            sub={`${canceladas} canceladas`}    color="#0068b7" Icon={CheckCircle}   loading={loadingRes}  />
       </div>
 
       {/* ── Barra de distribución ── */}
@@ -556,9 +553,9 @@ export default function AdminDashboard() {
             <SectionLabel>Distribución del día</SectionLabel>
             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
               {[
-                { label: 'Activas',     val: activas,     color: '#3de8c8' },
-                { label: 'Completadas', val: completadas,  color: '#5b7eff' },
-                { label: 'Canceladas',  val: canceladas,   color: '#ff4d6d' },
+                { label: 'Activas',     val: activas,     color: '#0068b7' },
+                { label: 'Completadas', val: completadas,  color: '#7ba5ff' },
+                { label: 'Canceladas',  val: canceladas,   color: '#0068b7' },
               ].map(s => (
                 <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <div style={{ width: 10, height: 10, borderRadius: 3, background: s.color }} />
@@ -570,9 +567,9 @@ export default function AdminDashboard() {
           </div>
           <div style={{ display: 'flex', height: 8, borderRadius: 100, overflow: 'hidden', marginTop: 14, gap: 2 }}>
             {[
-              { val: activas,    color: '#3de8c8' },
-              { val: completadas, color: '#5b7eff' },
-              { val: canceladas,  color: '#ff4d6d' },
+              { val: activas,    color: '#0068b7' },
+              { val: completadas, color: '#7ba5ff' },
+              { val: canceladas,  color: '#0068b7' },
             ].filter(s => s.val > 0).map((s, i) => (
               <div key={i} style={{ flex: s.val, background: s.color, borderRadius: 100 }} />
             ))}
@@ -616,10 +613,10 @@ export default function AdminDashboard() {
                     padding: '5px 12px', borderRadius: 7, border: 'none', cursor: 'pointer',
                     fontFamily: FF, fontSize: 11, fontWeight: 700,
                     background: filtroRol === r
-                      ? (r === 'OPERADOR' ? '#ffaa0022' : r === 'USUARIO' ? '#5b7eff22' : C.s2)
+                      ? (r === 'OPERADOR' ? '#ffcc0022' : r === 'USUARIO' ? '#7ba5ff22' : C.s2)
                       : 'transparent',
                     color: filtroRol === r
-                      ? (r === 'OPERADOR' ? '#ffaa00' : r === 'USUARIO' ? '#5b7eff' : C.text)
+                      ? (r === 'OPERADOR' ? '#ffcc00' : r === 'USUARIO' ? '#7ba5ff' : C.text)
                       : C.muted,
                     transition: 'all .15s',
                   }}
@@ -698,7 +695,7 @@ export default function AdminDashboard() {
                     </td>
                     <td style={{ padding: '14px 18px' }}>
                       {r.checkInTime
-                        ? <span style={{ fontSize: 12, color: '#3de8c8', fontWeight: 600, fontFamily: FF }}>✓ {fmtHora(r.checkInTime)}</span>
+                        ? <span style={{ fontSize: 12, color: '#0068b7', fontWeight: 600, fontFamily: FF }}>✓ {fmtHora(r.checkInTime)}</span>
                         : <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>—</span>
                       }
                     </td>
@@ -721,8 +718,8 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
               {[
                 { label: 'Total',      val: usuarios.length,                    color: C.muted    },
-                { label: 'Operadores', val: operadores,                          color: '#ffaa00'  },
-                { label: 'Inactivos',  val: inactivos,                           color: '#ff4d6d'  },
+                { label: 'Operadores', val: operadores,                          color: '#ffcc00'  },
+                { label: 'Inactivos',  val: inactivos,                           color: '#0068b7'  },
               ].map(s => (
                 <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 9, padding: '5px 12px' }}>
                   <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>{s.label}</span>
@@ -816,9 +813,9 @@ export default function AdminDashboard() {
                       <td style={{ padding: '14px 18px' }}>
                         <span style={{
                           fontSize: 11, fontWeight: 700, fontFamily: FF,
-                          color: u.activo ? '#3de8c8' : '#ff4d6d',
-                          background: u.activo ? '#3de8c814' : '#ff4d6d12',
-                          border: `1px solid ${u.activo ? '#3de8c830' : '#ff4d6d30'}`,
+                          color: u.activo ? '#0068b7' : '#0068b7',
+                          background: u.activo ? '#0068b714' : '#0068b712',
+                          border: `1px solid ${u.activo ? '#0068b730' : '#0068b730'}`,
                           borderRadius: 100, padding: '3px 10px', whiteSpace: 'nowrap',
                         }}>
                           {u.activo ? 'Activo' : 'Inactivo'}
@@ -850,6 +847,7 @@ export default function AdminDashboard() {
           </Card>
         </>
       )}
+      </div>
 
       {/* ── Modal de edición ── */}
       {modalUsu && (
@@ -861,7 +859,7 @@ export default function AdminDashboard() {
             // Recargar solo la lista de usuarios
             setLoadingUsu(true)
             auth.fetchAuth('/api/usuarios/gestion')
-              .then(r => r.ok ? r.json() : [])
+              .then(r => r.ok ? auth.readJson(r, []) : [])
               .then(data => setUsuarios(Array.isArray(data) ? data : []))
               .catch(() => {})
               .finally(() => setLoadingUsu(false))
@@ -871,3 +869,5 @@ export default function AdminDashboard() {
     </div>
   )
 }
+
+

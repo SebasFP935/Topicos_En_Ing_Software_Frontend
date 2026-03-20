@@ -1,7 +1,7 @@
 // src/components/BottomNav.jsx
 import { NavLink } from 'react-router-dom'
 import { Home, CalendarCheck, BookOpen, LayoutDashboard, Wrench } from 'lucide-react'
-import { C } from '../tokens'
+import { C, FF } from '../tokens'
 import { auth } from '../utils/auth'
 
 const NAV_USUARIO = [
@@ -28,7 +28,7 @@ export function BottomNav() {
   ]
 
   return (
-    <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'linear-gradient(180deg, #052347 0%, #041d3a 100%)', borderTop: `1px solid ${C.border}`, display: 'flex', paddingBottom: 8, paddingTop: 8, zIndex: 100, boxShadow: '0 -6px 22px rgba(0,0,0,.2)' }}>
+    <nav style={{ position: 'fixed', bottom: 10, left: 10, right: 10, background: 'rgba(10,13,18,.9)', border: `1px solid ${C.border}`, backdropFilter: 'blur(10px)', borderRadius: 18, display: 'flex', paddingBottom: 8, paddingTop: 8, zIndex: 100, boxShadow: '0 10px 24px rgba(0,0,0,.34)' }}>
       {items.map(({ to, Icon, label }) => (
         <NavLink
           key={to}
@@ -36,15 +36,15 @@ export function BottomNav() {
           end={to === '/'}
           style={({ isActive }) => ({
             flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-            color: isActive ? C.text : C.muted, transition: 'color .2s', padding: '4px 0',
+            color: isActive ? C.text : C.muted, transition: 'color .15s', padding: '4px 0',
           })}
         >
           {({ isActive }) => (
             <>
-              <div style={{ width: 36, height: 28, borderRadius: 10, background: isActive ? 'linear-gradient(90deg, rgba(0,104,183,.38), rgba(0,104,183,.15))' : 'transparent', border: `1px solid ${isActive ? '#2e78b8' : 'transparent'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
-                <Icon size={18} strokeWidth={isActive ? 2.5 : 1.8} color={isActive ? C.teal : C.muted} />
+              <div style={{ width: 40, height: 28, borderRadius: 10, border: isActive ? `1px solid ${C.accent}66` : '1px solid transparent', background: isActive ? 'linear-gradient(130deg, rgba(0,104,183,.22), rgba(123,165,255,.16))' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s' }}>
+                <Icon size={18} strokeWidth={isActive ? 2.5 : 1.8} />
               </div>
-              <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{label}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, fontFamily: FF }}>{label}</span>
             </>
           )}
         </NavLink>
@@ -52,3 +52,4 @@ export function BottomNav() {
     </nav>
   )
 }
+

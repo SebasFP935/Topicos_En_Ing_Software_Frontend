@@ -33,9 +33,8 @@ import {
 import { C, GRAD } from '../tokens'
 import { auth } from '../utils/auth'
 
-const FF = "'Plus Jakarta Sans', sans-serif"
-const SNAP_GRID = 1
-const VISUAL_GRID = 8
+const FF = 'var(--ff-apple)'
+const GRID = 10
 const SNAP_ANGLE = 15      // grados al hacer snap con Shift
 const GUIDE_THRESH = 8     // px para activar línea guía
 const MIN_SIZE = 20
@@ -43,23 +42,17 @@ const HANDLE_R = 6         // radio de handle resize
 const ROT_HANDLE_OFFSET = 24  // distancia del handle de rotación
 
 const TV_COLOR = {
-  AUTO:         '#5b7eff',
-  MOTO:         '#a259ff',
-  BICICLETA:    '#3de8c8',
-  DISCAPACIDAD: '#ffaa00',
-  ELECTRICO:    '#3de8c8',
+  AUTO:         '#0068b7',
+  MOTO:         '#8d6bff',
+  BICICLETA:    '#7ba5ff',
+  DISCAPACIDAD: '#ffcc00',
+  ELECTRICO:    '#b9c0cd',
 }
-const TV_ICON = {
-  AUTO: Car,
-  MOTO: Gauge,
-  BICICLETA: Bike,
-  DISCAPACIDAD: Accessibility,
-  ELECTRICO: Zap,
-}
-const TIPOS = ['AUTO', 'MOTO', 'BICICLETA', 'DISCAPACIDAD']
-const getTipoIcon = (tipo) => TV_ICON[tipo] || ParkingSquare
+const TV_ICON = { AUTO: Car, MOTO: Gauge, BICICLETA: Bike, DISCAPACIDAD: Accessibility, ELECTRICO: Zap }
+const TV_GLYPH = { AUTO: 'A', MOTO: 'M', BICICLETA: 'B', DISCAPACIDAD: 'D', ELECTRICO: 'E' }
+const TIPOS = ['AUTO', 'MOTO', 'BICICLETA', 'DISCAPACIDAD', 'ELECTRICO']
 
-const snap = (v, g = SNAP_GRID) => Math.round(v / g) * g
+const snap = (v, g = GRID) => Math.round(v / g) * g
 const uid  = () => 'tmp_' + Math.random().toString(36).slice(2, 9)
 const deg  = rad => rad * 180 / Math.PI
 const rad  = d => d * Math.PI / 180
@@ -99,8 +92,8 @@ function TB({ active, onClick, title, children, danger }) {
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        width: 34, height: 34, borderRadius: 8,
-        background: active ? GRAD : danger ? C.danger + '18' : 'transparent',
+        width: 40, height: 40, borderRadius: 12,
+        background: active ? GRAD : danger ? C.danger + '18' : 'rgba(255,255,255,.02)',
         color: active ? '#fff' : danger ? C.danger : C.muted,
         border: `1px solid ${active ? 'transparent' : danger ? C.danger + '40' : C.border}`,
         cursor: 'pointer', transition: 'all .12s', flexShrink: 0,
@@ -112,7 +105,7 @@ function TB({ active, onClick, title, children, danger }) {
 }
 
 // ── Separador de toolbar ───────────────────────────────────────────────────
-const Sep = () => <div style={{ width: 1, height: 22, background: C.border, margin: '0 4px' }} />
+const Sep = () => <div style={{ width: 1, height: 24, background: C.border, margin: '0 4px' }} />
 
 // ── Input numérico para el panel de propiedades ────────────────────────────
 function NumInput({ label, value, onChange, unit = '', min, max, step = 1 }) {
@@ -148,7 +141,7 @@ function NumInput({ label, value, onChange, unit = '', min, max, step = 1 }) {
 // ── Cargando ───────────────────────────────────────────────────────────────
 function Loading() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: C.bg, flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'linear-gradient(180deg, rgba(5,6,8,.74), rgba(5,6,8,.9))', flexDirection: 'column', gap: 16 }}>
       <div style={{ width: 40, height: 40, border: `3px solid ${C.border}`, borderTop: `3px solid ${C.accent}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       <p style={{ color: C.muted, fontSize: 14, fontFamily: FF }}>Cargando editor…</p>
@@ -211,12 +204,6 @@ export default function OperadorEditorMapa() {
     margenX: '30', margenY: '30',
     tipo: 'AUTO', angulo: '0', reemplazar: false,
   })
-
-  useEffect(() => {
-    if (!TIPOS.includes(autoForm.tipo)) {
-      setAutoForm(prev => ({ ...prev, tipo: 'AUTO' }))
-    }
-  }, [autoForm.tipo])
 
   // ── propiedades del espacio seleccionado ───────────────────────────────
   const selArr = useMemo(() => espacios.filter(e => selIds.has(e.id)), [espacios, selIds])
@@ -621,51 +608,6 @@ export default function OperadorEditorMapa() {
     e.target.value = ''
   }
 
-  const nextCodigo = useCallback((prefijoRaw = 'A') => {
-    const prefijo = (prefijoRaw || 'A').toString().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'A'
-    const usados = new Set(espacios.map(e => (e.codigo || '').toString().trim().toUpperCase()))
-    let n = 1
-    let codigo = `${prefijo}-${String(n).padStart(2, '0')}`
-    while (usados.has(codigo)) {
-      n += 1
-      codigo = `${prefijo}-${String(n).padStart(2, '0')}`
-    }
-    return codigo
-  }, [espacios])
-
-  const handleAddManual = useCallback(() => {
-    const w = Math.max(MIN_SIZE, snap(parseFloat(autoForm.espacioAncho) || 52))
-    const h = Math.max(MIN_SIZE, snap(parseFloat(autoForm.espacioAlto) || 72))
-    const angulo = ((Math.round(parseFloat(autoForm.angulo) || 0) % 360) + 360) % 360
-    const tipoVehiculo = TIPOS.includes(autoForm.tipo) ? autoForm.tipo : 'AUTO'
-
-    let x = snap(clamp(selOne ? selOne.x + 24 : (mapaAncho / 2 - w / 2), 0, Math.max(0, mapaAncho - w)))
-    let y = snap(clamp(selOne ? selOne.y + 24 : (mapaAlto / 2 - h / 2), 0, Math.max(0, mapaAlto - h)))
-
-    for (let i = 0; i < 80; i++) {
-      const ocupado = espacios.some(e => Math.abs(e.x - x) < 4 && Math.abs(e.y - y) < 4)
-      if (!ocupado) break
-      x = snap(x + VISUAL_GRID)
-      if (x > mapaAncho - w) {
-        x = 0
-        y = snap(y + VISUAL_GRID)
-      }
-      if (y > mapaAlto - h) y = 0
-    }
-
-    const nuevo = {
-      id: uid(),
-      codigo: nextCodigo(autoForm.prefijo),
-      tipoVehiculo,
-      estado: 'DISPONIBLE',
-      x, y, w, h, angulo,
-    }
-    commitChange([...espacios, nuevo])
-    setSelIds(new Set([nuevo.id]))
-    setTool('select')
-    showToast(`Espacio ${nuevo.codigo} agregado`)
-  }, [autoForm, commitChange, espacios, mapaAlto, mapaAncho, nextCodigo, selOne, showToast])
-
   // ── Auto-generar ───────────────────────────────────────────────────────
   const handleAutoGen = () => {
     const mX = parseFloat(autoForm.margenX)      || 30
@@ -679,7 +621,6 @@ export default function OperadorEditorMapa() {
       : Math.max(1, Math.floor((mapaAncho - 2 * mX + eH) / (ew + eH)))
     const rows = autoForm.filas ? parseInt(autoForm.filas)
       : Math.max(1, Math.floor((mapaAlto - 2 * mY + eV) / (eh + eV)))
-    const tipoVehiculo = TIPOS.includes(autoForm.tipo) ? autoForm.tipo : 'AUTO'
 
     const base = autoForm.reemplazar ? [] : espacios
     const existentes = base.length
@@ -690,7 +631,7 @@ export default function OperadorEditorMapa() {
         nuevos.push({
           id: uid(),
           codigo: `${autoForm.prefijo}${String(n).padStart(2, '0')}`,
-          tipoVehiculo,
+          tipoVehiculo: autoForm.tipo,
           estado: 'DISPONIBLE',
           x: snap(mX + c * (ew + eH)),
           y: snap(mY + r * (eh + eV)),
@@ -729,17 +670,17 @@ export default function OperadorEditorMapa() {
         body: JSON.stringify(payload),
       })
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.mensaje || 'Error al guardar')
+        const err = await auth.readJson(res, {})
+        throw new Error(auth.message(err?.mensaje, 'Error al guardar'))
       }
-      const data = await res.json()
+      const data = await auth.readJson(res, {})
       const esps = (data.espacios || []).map(e => ({ ...e, angulo: e.angulo || 0 }))
       setEspacios(esps)
       setImagenFondo(data.planoImagen || null)
       setHayCambios(false)
       showToast('Mapa guardado ✓')
     } catch (err) {
-      showToast(err.message || 'Error al guardar', 'error')
+      showToast(auth.message(err?.message, 'Error al guardar'), 'error')
     } finally {
       setSaving(false)
     }
@@ -751,7 +692,7 @@ export default function OperadorEditorMapa() {
   if (loading) return <Loading />
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: C.bg, overflow: 'hidden', fontFamily: FF }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'linear-gradient(180deg, rgba(5,6,8,.72), rgba(5,6,8,.9))', overflow: 'hidden', fontFamily: FF }}>
 
       {/* ── Toast ── */}
       {toast && (
@@ -772,7 +713,7 @@ export default function OperadorEditorMapa() {
       ══════════════════════════════════════════════════════════════ */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 10,
-        padding: '8px 14px', background: C.surface,
+        padding: '10px 16px', background: 'linear-gradient(180deg, rgba(11,13,17,.94), rgba(11,13,17,.82))',
         borderBottom: `1px solid ${C.border}`, flexShrink: 0, flexWrap: 'wrap',
       }}>
         {/* Volver */}
@@ -889,7 +830,7 @@ export default function OperadorEditorMapa() {
 
         {/* ── Panel Izquierdo ── */}
         <div style={{
-          width: 220, background: C.surface, borderRight: `1px solid ${C.border}`,
+          width: 270, background: 'linear-gradient(180deg, rgba(11,13,17,.95), rgba(11,13,17,.82))', borderRight: `1px solid ${C.border}`,
           display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto',
         }}>
           {/* Imagen de fondo */}
@@ -915,33 +856,20 @@ export default function OperadorEditorMapa() {
 
           {/* Auto-generar */}
           <Section title="ESPACIOS" icon={<LayoutGrid size={12} />}>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                onClick={() => setShowAutoGen(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  width: '100%', padding: '8px 10px', borderRadius: 8,
-                  background: GRAD, border: 'none', color: '#fff',
-                  fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FF,
-                }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Zap size={13} /> Auto-generar
-                </span>
-                {showAutoGen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-              <button
-                onClick={handleAddManual}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  minWidth: 112, padding: '8px 10px', borderRadius: 8,
-                  background: C.s2, border: `1px solid ${C.border}`, color: C.text,
-                  fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FF,
-                }}
-              >
-                <Plus size={13} /> Manual
-              </button>
-            </div>
+            <button
+              onClick={() => setShowAutoGen(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%', padding: '8px 10px', borderRadius: 8,
+                background: GRAD, border: 'none', color: '#fff',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FF,
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Zap size={13} /> Auto-generar
+              </span>
+              {showAutoGen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
 
             {showAutoGen && (
               <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1015,15 +943,13 @@ export default function OperadorEditorMapa() {
             {TIPOS.map(t => (
               <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <div style={{ width: 12, height: 12, borderRadius: 3, background: TV_COLOR[t] + '30', border: `1.5px solid ${TV_COLOR[t]}` }} />
-                {(() => {
-                  const TipoIcon = getTipoIcon(t)
-                  return (
-                    <>
-                      <TipoIcon size={12} color={TV_COLOR[t]} strokeWidth={2} />
-                      <span style={{ fontSize: 11, color: C.muted, fontFamily: FF }}>{t}</span>
-                    </>
-                  )
-                })()}
+                <span style={{ fontSize: 11, color: C.muted, fontFamily: FF, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {(() => {
+                    const Icon = TV_ICON[t] || ParkingSquare
+                    return <Icon size={12} />
+                  })()}
+                  {t}
+                </span>
               </div>
             ))}
           </Section>
@@ -1054,13 +980,13 @@ export default function OperadorEditorMapa() {
         <div
           ref={containerRef}
           onWheel={onWheel}
-          style={{ flex: 1, overflow: 'hidden', position: 'relative', background: '#0a0b1a', cursor }}
+          style={{ flex: 1, overflow: 'hidden', position: 'relative', background: 'rgba(10,11,26,.82)', cursor }}
         >
           {/* Dot grid background */}
           <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
             <defs>
-              <pattern id="dotgrid" x={pan.x % (VISUAL_GRID * zoom)} y={pan.y % (VISUAL_GRID * zoom)} width={VISUAL_GRID * zoom} height={VISUAL_GRID * zoom} patternUnits="userSpaceOnUse">
-                <circle cx={VISUAL_GRID * zoom / 2} cy={VISUAL_GRID * zoom / 2} r={.8} fill={C.border} opacity=".6" />
+              <pattern id="dotgrid" x={pan.x % (GRID * zoom)} y={pan.y % (GRID * zoom)} width={GRID * zoom} height={GRID * zoom} patternUnits="userSpaceOnUse">
+                <circle cx={GRID * zoom / 2} cy={GRID * zoom / 2} r={.8} fill={C.border} opacity=".6" />
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#dotgrid)" />
@@ -1093,8 +1019,8 @@ export default function OperadorEditorMapa() {
             {/* Líneas guía de snap */}
             {guides.map((g, i) =>
               g.type === 'v'
-                ? <line key={i} x1={g.pos} y1={0} x2={g.pos} y2={mapaAlto} stroke="#5b7eff" strokeWidth={.8} strokeDasharray="4 3" opacity={.7} />
-                : <line key={i} x1={0} y1={g.pos} x2={mapaAncho} y2={g.pos} stroke="#5b7eff" strokeWidth={.8} strokeDasharray="4 3" opacity={.7} />
+                ? <line key={i} x1={g.pos} y1={0} x2={g.pos} y2={mapaAlto} stroke="#7ba5ff" strokeWidth={.8} strokeDasharray="4 3" opacity={.7} />
+                : <line key={i} x1={0} y1={g.pos} x2={mapaAncho} y2={g.pos} stroke="#7ba5ff" strokeWidth={.8} strokeDasharray="4 3" opacity={.7} />
             )}
 
             {/* Espacios */}
@@ -1105,8 +1031,7 @@ export default function OperadorEditorMapa() {
               const cy       = esp.y + esp.h / 2
               const ang      = esp.angulo || 0
               const fs       = Math.min(esp.w, esp.h) < 40 ? 7 : 10
-              const iconSize = Math.min(esp.w, esp.h) < 40 ? 10 : 14
-              const TipoIcon = getTipoIcon(esp.tipoVehiculo)
+              const icon     = TV_GLYPH[esp.tipoVehiculo] || 'P'
 
               // Handles de resize (en espacio local antes de rotar)
               const handles = [
@@ -1172,9 +1097,11 @@ export default function OperadorEditorMapa() {
                   />
 
                   {/* Icono tipo */}
-                  <g transform={`translate(${cx - iconSize / 2} ${cy - iconSize / 2 - fs * 0.7})`} pointerEvents="none">
-                    <TipoIcon size={iconSize} color={color} strokeWidth={2.1} />
-                  </g>
+                  <text
+                    x={cx} y={cy - fs * .5}
+                    textAnchor="middle" fontSize={Math.min(esp.w, esp.h) < 40 ? 10 : 16}
+                    pointerEvents="none"
+                  >{icon}</text>
 
                   {/* Código */}
                   <text
@@ -1238,7 +1165,7 @@ export default function OperadorEditorMapa() {
 
         {/* ── Panel Derecho: Propiedades ── */}
         <div style={{
-          width: 240, background: C.surface, borderLeft: `1px solid ${C.border}`,
+          width: 280, background: 'linear-gradient(180deg, rgba(11,13,17,.95), rgba(11,13,17,.82))', borderLeft: `1px solid ${C.border}`,
           display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto',
         }}>
           {selOne ? (
@@ -1262,9 +1189,7 @@ export default function OperadorEditorMapa() {
                     onChange={e => updateProp(selOne.id, 'tipoVehiculo', e.target.value)}
                     style={{ width: '100%', padding: '6px 8px', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 12, fontFamily: FF, outline: 'none' }}
                   >
-                    {[...TIPOS, ...(TIPOS.includes(selOne.tipoVehiculo) ? [] : [selOne.tipoVehiculo])].map(t => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
+                    {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
 
@@ -1312,11 +1237,11 @@ export default function OperadorEditorMapa() {
                 {/* Color indicator */}
                 <div style={{ padding: '8px 10px', background: (TV_COLOR[selOne.tipoVehiculo] || C.accent) + '14', border: `1px solid ${(TV_COLOR[selOne.tipoVehiculo] || C.accent)}30`, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: TV_COLOR[selOne.tipoVehiculo] || C.accent }} />
-                  {(() => {
-                    const TipoIcon = getTipoIcon(selOne.tipoVehiculo)
-                    return <TipoIcon size={14} color={TV_COLOR[selOne.tipoVehiculo] || C.accent} strokeWidth={2.1} />
-                  })()}
-                  <span style={{ fontSize: 12, color: TV_COLOR[selOne.tipoVehiculo] || C.accent, fontWeight: 700, fontFamily: FF }}>
+                  <span style={{ fontSize: 12, color: TV_COLOR[selOne.tipoVehiculo] || C.accent, fontWeight: 700, fontFamily: FF, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    {(() => {
+                      const Icon = TV_ICON[selOne.tipoVehiculo] || ParkingSquare
+                      return <Icon size={13} />
+                    })()}
                     {selOne.tipoVehiculo}
                   </span>
                 </div>
@@ -1377,3 +1302,5 @@ function Section({ title, icon, children, collapsible = true, defaultOpen = true
     </div>
   )
 }
+
+

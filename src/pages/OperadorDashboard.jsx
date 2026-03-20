@@ -18,7 +18,7 @@ const ESTADO = {
   PENDIENTE_ACTIVACION: { label: 'Pendiente',  color: '#f59e0b' },
   ACTIVA:               { label: 'Activa',      color: '#3de8c8' },
   COMPLETADA:           { label: 'Completada',  color: '#5b7eff' },
-  CANCELADA:            { label: 'Cancelada',   color: '#ff4d6d' },
+  CANCELADA:            { label: 'Cancelada',   color: '#0068b7' },
   NO_SHOW:              { label: 'No-show',      color: '#ffaa00' },
 }
 
@@ -60,7 +60,7 @@ export default function OperadorDashboard() {
     setLoading(true)
     try {
       const res = await auth.fetchAuth('/api/reservas/hoy')
-      setReservas(res.ok ? await res.json() : [])
+      setReservas(res.ok ? await auth.readJson(res, []) : [])
     } catch { setReservas([]) }
     finally { setLoading(false) }
   }, [])
@@ -75,12 +75,12 @@ export default function OperadorDashboard() {
       const url = `/api/reservas/escanear/${encodeURIComponent(reserva.codigoQrFisico)}`
       const res = await auth.fetchAuth(url)
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d.mensaje || 'No se pudo procesar el QR fisico.')
+        const d = await auth.readJson(res, {})
+        throw new Error(auth.message(d?.mensaje, 'No se pudo procesar el QR fisico.'))
       }
       await cargar()
     } catch (e) {
-      alert(e.message)
+      alert(auth.message(e?.message, 'No se pudo procesar el QR fisico.'))
     } finally {
       setActionLoading(null)
     }
@@ -95,7 +95,7 @@ export default function OperadorDashboard() {
 
     const tryEspacioFisico = async () => {
       const res = await auth.fetchAuth(`/api/reservas/escanear/${encodeURIComponent(code)}`)
-      const d = await res.json().catch(() => ({}))
+      const d = await auth.readJson(res, {})
       return { ok: res.ok, data: d, status: res.status }
     }
 
@@ -107,7 +107,7 @@ export default function OperadorDashboard() {
         setManualQr('')
         cargar()
       } else {
-        setManualMsg({ tipo: 'error', msg: fisico.data?.mensaje || 'No se pudo procesar el QR fisico.' })
+        setManualMsg({ tipo: 'error', msg: auth.message(fisico.data?.mensaje, 'No se pudo procesar el QR fisico.') })
       }
     } catch {
       setManualMsg({ tipo: 'error', msg: 'Error de conexion.' })
@@ -181,7 +181,7 @@ export default function OperadorDashboard() {
           </button>
         </div>
         {manualMsg && (
-          <div style={{ marginTop: 10, padding: '9px 14px', borderRadius: 8, background: manualMsg.tipo === 'success' ? '#3de8c814' : '#ff4d6d14', border: `1px solid ${manualMsg.tipo === 'success' ? '#3de8c830' : '#ff4d6d30'}`, color: manualMsg.tipo === 'success' ? '#3de8c8' : '#ff4d6d', fontSize: 13, fontFamily: FF }}>
+          <div style={{ marginTop: 10, padding: '9px 14px', borderRadius: 8, background: manualMsg.tipo === 'success' ? '#3de8c814' : '#0068b714', border: `1px solid ${manualMsg.tipo === 'success' ? '#3de8c830' : '#0068b730'}`, color: manualMsg.tipo === 'success' ? '#3de8c8' : '#0068b7', fontSize: 13, fontFamily: FF }}>
             {manualMsg.msg}
           </div>
         )}
@@ -286,6 +286,7 @@ export default function OperadorDashboard() {
     </div>
   )
 }
+
 
 
 

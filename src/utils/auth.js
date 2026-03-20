@@ -1,4 +1,6 @@
 // src/utils/auth.js
+import { fixMojibake, normalizeTextPayload } from './text'
+
 const TOKEN_KEY   = 'np_token'
 const REFRESH_KEY = 'np_refresh'
 const USER_KEY    = 'np_user'
@@ -9,6 +11,23 @@ const BASE_HEADERS = {
 }
 
 export const auth = {
+  message(value, fallback = '') {
+    const base = value ?? fallback
+    return fixMojibake(typeof base === 'string' ? base : String(base ?? ''))
+  },
+
+  normalize(value) {
+    return normalizeTextPayload(value)
+  },
+
+  async readJson(response, fallback = null) {
+    try {
+      return normalizeTextPayload(await response.json())
+    } catch {
+      return fallback
+    }
+  },
+
   save(response) {
     localStorage.setItem(TOKEN_KEY,   response.accessToken)
     localStorage.setItem(REFRESH_KEY, response.refreshToken)
@@ -56,7 +75,7 @@ export const auth = {
         body:    JSON.stringify({ refreshToken: rt }),
       })
       if (!res.ok) return false
-      this.save(await res.json())
+      this.save(await this.readJson(res))
       return true
     } catch {
       return false

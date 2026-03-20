@@ -17,25 +17,25 @@ function useIsMobile() {
 export function Layout() {
   const isMobile = useIsMobile()
   return (
-    <div
-      style={{
-        display: 'flex',
-        minHeight: '100vh',
-        color: C.text,
-        background:
-          'radial-gradient(circle at 80% 0%, rgba(255,204,0,0.14) 0%, transparent 20%), linear-gradient(180deg, #031428 0%, #052347 100%)',
-      }}
-    >
+    <div style={{
+      display: 'flex',
+      height: '100dvh',
+      minHeight: '100dvh',
+      overflow: 'hidden',
+      background: 'linear-gradient(180deg, rgba(5,6,8,.74), rgba(5,6,8,.9))',
+      color: C.text,
+      position: 'relative',
+      isolation: 'isolate',
+    }}>
       {!isMobile && <Sidebar />}
-      <main
-        style={{
-          flex: 1,
-          minWidth: 0,
-          paddingBottom: isMobile ? 72 : 0,
-          overflowX: 'hidden',
-          backdropFilter: 'blur(4px)',
-        }}
-      >
+      <main style={{
+        flex: 1,
+        minWidth: 0,
+        minHeight: 0,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        paddingBottom: isMobile ? 82 : 0,
+      }}>
         <Outlet />
       </main>
       {isMobile && <BottomNav />}

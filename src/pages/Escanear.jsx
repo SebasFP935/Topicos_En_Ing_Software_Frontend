@@ -1,4 +1,4 @@
-﻿// src/pages/Escanear.jsx
+// src/pages/Escanear.jsx
 // Se abre cuando el usuario escanea el QR fisico del espacio.
 // Endpoint: GET /api/reservas/escanear/{codigoQrFisico} (requiere autenticacion)
 // El codigoQrFisico es el UUID fijo del Espacio, no de la reserva.
@@ -6,10 +6,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { XCircle, Clock, ParkingSquare, LogIn, LogOut, AlertTriangle } from 'lucide-react'
-import { C } from '../tokens'
+import { C, GRAD, FF } from '../tokens'
 import { auth } from '../utils/auth'
 
-const FF = "'Plus Jakarta Sans', sans-serif"
 const fmtHora = iso => iso ? new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''
 
 export default function Escanear() {
@@ -43,17 +42,17 @@ export default function Escanear() {
         )
         if (cancelado) return
 
-        const data = await res.json().catch(() => ({}))
+        const data = await auth.readJson(res, {})
         if (cancelado) return
 
         if (res.status === 401 || res.status === 403) {
           setEstado('no-auth')
         } else if (!res.ok) {
           setEstado('error')
-          setMensaje(data.mensaje || 'No se pudo procesar el escaneo.')
+          setMensaje(auth.message(data?.mensaje, 'No se pudo procesar el escaneo.'))
         } else {
           setEstado('ok')
-          setResultado(data)
+          setResultado(auth.normalize(data))
         }
       } catch {
         if (cancelado || controller.signal.aborted) return
@@ -76,8 +75,8 @@ export default function Escanear() {
   if (estado === 'no-auth') {
     return (
       <Pantalla>
-        <Icono color="#f59e0b" bg="rgba(245,158,11,0.12)">
-          <AlertTriangle size={36} color="#f59e0b" />
+        <Icono color="#ffcc00" bg="rgba(255,204,0,0.14)">
+          <AlertTriangle size={36} color="#ffcc00" />
         </Icono>
         <h2 style={h2}>Debes iniciar sesion</h2>
         <p style={sub}>Para activar tu reserva, primero inicia sesion en la app.</p>
@@ -99,7 +98,7 @@ export default function Escanear() {
           height: 64,
           borderRadius: '50%',
           border: `3px solid ${C.border}`,
-          borderTopColor: '#3de8c8',
+          borderTopColor: C.accent,
           margin: '0 auto 20px',
           animation: 'spin 0.8s linear infinite',
         }} />
@@ -112,10 +111,10 @@ export default function Escanear() {
   if (estado === 'error') {
     return (
       <Pantalla>
-        <Icono color="#ff4d6d" bg="rgba(255,77,109,0.12)">
-          <XCircle size={36} color="#ff4d6d" />
+        <Icono color="#0068b7" bg="rgba(0,104,183,0.12)">
+          <XCircle size={36} color="#0068b7" />
         </Icono>
-        <h2 style={{ ...h2, color: '#ff4d6d' }}>No se pudo procesar</h2>
+        <h2 style={{ ...h2, color: '#0068b7' }}>No se pudo procesar</h2>
         <p style={sub}>{mensaje}</p>
         <button onClick={() => navigate('/reservas')} style={btnPrimary}>
           Ver mis reservas
@@ -125,8 +124,8 @@ export default function Escanear() {
   }
 
   const esCheckIn = resultado?.accion === 'CHECK_IN'
-  const colorAccion = esCheckIn ? '#3de8c8' : '#a78bfa'
-  const bgAccion = esCheckIn ? 'rgba(61,232,200,0.10)' : 'rgba(167,139,250,0.10)'
+  const colorAccion = esCheckIn ? C.accent : '#5b7eff'
+  const bgAccion = esCheckIn ? 'rgba(0,104,183,0.14)' : 'rgba(91,126,255,0.14)'
 
   return (
     <Pantalla>
@@ -154,7 +153,7 @@ export default function Escanear() {
       <h2 style={{ ...h2, color: colorAccion }}>
         {esCheckIn ? 'Reserva activada' : 'Hasta pronto'}
       </h2>
-      <p style={sub}>{resultado?.mensaje}</p>
+      <p style={sub}>{auth.message(resultado?.mensaje, '')}</p>
 
       <div style={{
         background: C.surface,
@@ -227,7 +226,7 @@ function Pantalla({ children }) {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#06060f',
+      background: 'radial-gradient(circle at 18% 12%, rgba(0,104,183,.2), transparent 34%), radial-gradient(circle at 82% 8%, rgba(255,204,0,.16), transparent 36%), #031428',
       padding: 24,
       fontFamily: FF,
     }}>
@@ -235,11 +234,12 @@ function Pantalla({ children }) {
         width: '100%',
         maxWidth: 400,
         textAlign: 'center',
-        background: '#0d0e1f',
-        border: '1px solid #1e2130',
+        background: 'linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.02) 44%, rgba(255,255,255,.01)), rgba(5,35,71,.86)',
+        border: '1px solid rgba(255,255,255,.14)',
         borderRadius: 24,
         padding: 36,
         boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+        backdropFilter: 'blur(8px)',
       }}>
         {children}
       </div>
@@ -266,12 +266,12 @@ function Icono({ children, color, bg }) {
 }
 
 const h2 = { fontSize: 22, fontWeight: 800, color: '#e8eaf6', marginBottom: 8, fontFamily: FF }
-const sub = { color: '#6b7099', fontSize: 14, lineHeight: 1.6, marginBottom: 8, fontFamily: FF }
+const sub = { color: '#9fb8d5', fontSize: 14, lineHeight: 1.6, marginBottom: 8, fontFamily: FF }
 const btnPrimary = {
   width: '100%',
   padding: '14px 0',
   borderRadius: 12,
-  background: 'linear-gradient(135deg, #3de8c8, #5b7eff)',
+  background: GRAD,
   border: 'none',
   color: '#fff',
   fontWeight: 700,
@@ -279,3 +279,4 @@ const btnPrimary = {
   cursor: 'pointer',
   fontFamily: FF,
 }
+

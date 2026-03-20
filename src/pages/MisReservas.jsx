@@ -1,24 +1,23 @@
 // src/pages/MisReservas.jsx
 import { useState, useEffect } from 'react'
 import { Clock, Calendar, ParkingSquare, CheckCircle, AlertTriangle, X, Info, ScanLine } from 'lucide-react'
-import { C, GRAD } from '../tokens'
+import { C, GRAD, MAIN_TITLE_SIZE } from '../tokens'
 import { Card }         from '../components/ui/Card'
 import { Badge }        from '../components/ui/Badge'
-import { GradText }     from '../components/ui/GradText'
 import { SectionLabel } from '../components/ui/SectionLabel'
 import { auth }         from '../utils/auth'
 
-const FF = "'Plus Jakarta Sans', sans-serif"
+const FF = 'var(--ff-apple)'
 
 const fmtHora  = dt => dt ? new Date(dt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''
 const fmtFecha = d  => d  ? new Date(d + 'T00:00:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }) : ''
 
 const EST = {
-  PENDIENTE_ACTIVACION: { label: 'Pendiente',  color: '#f59e0b', Icon: Clock         },
-  ACTIVA:               { label: 'Activa',      color: '#3de8c8', Icon: CheckCircle   },
-  COMPLETADA:           { label: 'Completada',  color: '#6b7099', Icon: CheckCircle   },
-  CANCELADA:            { label: 'Cancelada',   color: '#ff4d6d', Icon: X             },
-  NO_SHOW:              { label: 'No-show',      color: '#ffaa00', Icon: AlertTriangle  },
+  PENDIENTE_ACTIVACION: { label: 'Pendiente',  color: '#ffcc00', Icon: Clock         },
+  ACTIVA:               { label: 'Activa',      color: '#0068b7', Icon: CheckCircle   },
+  COMPLETADA:           { label: 'Completada',  color: '#8d6bff', Icon: CheckCircle   },
+  CANCELADA:            { label: 'Cancelada',   color: '#0068b7', Icon: X             },
+  NO_SHOW:              { label: 'No-show',      color: '#ffcc00', Icon: AlertTriangle  },
 }
 
 // ── Modal instrucciones activación ────────────────────────────────────────
@@ -46,10 +45,10 @@ function ModalActivacion({ reserva, onClose }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
               width: 40, height: 40, borderRadius: 12,
-              background: 'rgba(61,232,200,0.12)',
+              background: 'rgba(123,165,255,0.12)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <ScanLine size={20} color="#3de8c8" />
+              <ScanLine size={20} color="#7ba5ff" />
             </div>
             <div>
               <div style={{ color: C.text, fontWeight: 700, fontSize: 16 }}>Cómo activar tu reserva</div>
@@ -81,9 +80,9 @@ function ModalActivacion({ reserva, onClose }) {
         {/* Pasos */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 }}>
           {[
-            { num: '1', color: '#3de8c8', rgb: '61,232,200', titulo: 'Llega a tu espacio', desc: `Dirígete al espacio ${reserva.codigoEspacio} en ${reserva.zonaNombre} dentro de tu horario reservado (puedes llegar hasta 50 min antes).` },
-            { num: '2', color: '#a78bfa', rgb: '167,139,250', titulo: 'Escanea el QR del espacio', desc: 'Busca el código QR físico pegado en tu espacio. Ábrelo con la cámara del celular — esto activará tu reserva automáticamente.' },
-            { num: '3', color: '#60a5fa', rgb: '96,165,250', titulo: 'Al salir, escanea de nuevo', desc: 'Cuando termines, vuelve a escanear el mismo QR del espacio para marcar tu salida y completar la reserva.' },
+            { num: '1', color: '#7ba5ff', rgb: '123,165,255', titulo: 'Llega a tu espacio', desc: `Dirígete al espacio ${reserva.codigoEspacio} en ${reserva.zonaNombre} dentro de tu horario reservado (puedes llegar hasta 5 min antes).` },
+            { num: '2', color: '#ffcc00', rgb: '255,204,0', titulo: 'Escanea el QR del espacio', desc: 'Busca el código QR físico pegado en tu espacio. Ábrelo con la cámara del celular — esto activará tu reserva automáticamente.' },
+            { num: '3', color: '#8d6bff', rgb: '141,107,255', titulo: 'Al salir, escanea de nuevo', desc: 'Cuando termines, vuelve a escanear el mismo QR del espacio para marcar tu salida y completar la reserva.' },
           ].map(p => (
             <div key={p.num} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
               <div style={{
@@ -102,12 +101,12 @@ function ModalActivacion({ reserva, onClose }) {
 
         {/* Aviso */}
         <div style={{
-          background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)',
+          background: 'rgba(255,204,0,0.08)', border: '1px solid rgba(255,204,0,0.25)',
           borderRadius: 10, padding: '10px 14px', display: 'flex', gap: 10, alignItems: 'flex-start',
           marginBottom: 20,
         }}>
-          <AlertTriangle size={14} color="#f59e0b" style={{ marginTop: 1, flexShrink: 0 }} />
-          <div style={{ color: '#f59e0b', fontSize: 12, lineHeight: 1.5 }}>
+          <AlertTriangle size={14} color="#ffcc00" style={{ marginTop: 1, flexShrink: 0 }} />
+          <div style={{ color: '#ffcc00', fontSize: 12, lineHeight: 1.5 }}>
             Solo funciona con el QR del espacio que reservaste. Si escaneas otro espacio, la activación no se realizará.
           </div>
         </div>
@@ -135,16 +134,25 @@ function ReservaCard({ reserva, onCancelar, cargandoId, onVerInstrucciones }) {
   const isActiva    = reserva.estado === 'ACTIVA'
 
   return (
-    <Card style={{ marginBottom: 14, fontFamily: FF }}>
+    <Card style={{
+      marginBottom: 0,
+      fontFamily: FF,
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 12,
+      padding: '16px 18px',
+    }}>
       {/* Cabecera */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <div style={{
             width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-            background: 'rgba(61,232,200,0.10)',
+            background: 'linear-gradient(145deg, rgba(0,104,183,.22), rgba(141,107,255,.18))',
+            border: '1px solid rgba(0,104,183,.35)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <ParkingSquare size={20} color="#3de8c8" />
+            <ParkingSquare size={20} color="#ffcc00" />
           </div>
           <div>
             <div style={{ color: C.text, fontWeight: 700, fontSize: 15 }}>Espacio {reserva.codigoEspacio}</div>
@@ -157,22 +165,31 @@ function ReservaCard({ reserva, onCancelar, cargandoId, onVerInstrucciones }) {
       </div>
 
       {/* Fecha y hora */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 12, color: C.muted, fontSize: 13 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Calendar size={13} /> {fmtFecha(reserva.fechaReserva)}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, color: C.muted, fontSize: 13 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, padding: '8px 10px',
+          background: 'rgba(255,255,255,.02)',
+        }}>
+          <Calendar size={13} /> <span style={{ whiteSpace: 'nowrap' }}>{fmtFecha(reserva.fechaReserva)}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Clock size={13} /> {fmtHora(reserva.fechaInicio)} – {fmtHora(reserva.fechaFin)}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, padding: '8px 10px',
+          background: 'rgba(255,255,255,.02)',
+        }}>
+          <Clock size={13} /> <span style={{ whiteSpace: 'nowrap' }}>{fmtHora(reserva.fechaInicio)} – {fmtHora(reserva.fechaFin)}</span>
         </div>
       </div>
 
       {/* Check-in / Check-out */}
       {(reserva.checkInTime || reserva.checkOutTime) && (
         <div style={{
-          display: 'flex', gap: 16, marginBottom: 12,
-          background: C.bg, borderRadius: 10, padding: '8px 12px', fontSize: 12,
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8,
+          background: 'linear-gradient(145deg, rgba(0,104,183,.08), rgba(141,107,255,.06))',
+          border: '1px solid rgba(0,104,183,.24)', borderRadius: 10, padding: '8px 10px', fontSize: 12,
         }}>
-          {reserva.checkInTime && <div style={{ color: '#3de8c8' }}>✓ Entrada: {fmtHora(reserva.checkInTime)}</div>}
+          {reserva.checkInTime && <div style={{ color: '#ffcc00' }}>✓ Entrada: {fmtHora(reserva.checkInTime)}</div>}
           {reserva.checkOutTime && <div style={{ color: C.muted }}>✓ Salida: {fmtHora(reserva.checkOutTime)}</div>}
         </div>
       )}
@@ -180,13 +197,13 @@ function ReservaCard({ reserva, onCancelar, cargandoId, onVerInstrucciones }) {
       {/* Banner pendiente */}
       {isPendiente && (
         <div style={{
-          background: 'rgba(61,232,200,0.06)', border: '1px solid rgba(61,232,200,0.18)',
-          borderRadius: 10, padding: '10px 14px', marginBottom: 12,
+          background: 'linear-gradient(145deg, rgba(0,104,183,.09), rgba(141,107,255,.07))', border: '1px solid rgba(0,104,183,.28)',
+          borderRadius: 10, padding: '10px 12px',
           display: 'flex', gap: 10, alignItems: 'center',
         }}>
-          <ScanLine size={16} color="#3de8c8" style={{ flexShrink: 0 }} />
+          <ScanLine size={16} color="#ffcc00" style={{ flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
-            <div style={{ color: '#3de8c8', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>
+            <div style={{ color: '#ffcc00', fontSize: 12, fontWeight: 700, marginBottom: 2 }}>
               Pendiente de activación
             </div>
             <div style={{ color: C.muted, fontSize: 11 }}>
@@ -196,8 +213,8 @@ function ReservaCard({ reserva, onCancelar, cargandoId, onVerInstrucciones }) {
           <button
             onClick={() => onVerInstrucciones(reserva)}
             style={{
-              background: 'rgba(61,232,200,0.12)', border: '1px solid rgba(61,232,200,0.3)',
-              borderRadius: 8, padding: '6px 12px', color: '#3de8c8',
+              background: 'rgba(0,104,183,0.14)', border: '1px solid rgba(0,104,183,0.36)',
+              borderRadius: 8, padding: '6px 12px', color: '#ffcc00',
               fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: FF,
             }}
           >
@@ -209,13 +226,13 @@ function ReservaCard({ reserva, onCancelar, cargandoId, onVerInstrucciones }) {
       {/* Banner activa */}
       {isActiva && (
         <div style={{
-          background: 'rgba(61,232,200,0.06)', border: '1px solid rgba(61,232,200,0.25)',
-          borderRadius: 10, padding: '10px 14px', marginBottom: 12,
+          background: 'linear-gradient(145deg, rgba(0,104,183,.1), rgba(141,107,255,.08))', border: '1px solid rgba(0,104,183,.3)',
+          borderRadius: 10, padding: '10px 12px',
           display: 'flex', gap: 10, alignItems: 'center',
         }}>
-          <CheckCircle size={16} color="#3de8c8" style={{ flexShrink: 0 }} />
+          <CheckCircle size={16} color="#ffcc00" style={{ flexShrink: 0 }} />
           <div>
-            <div style={{ color: '#3de8c8', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>
+            <div style={{ color: '#ffcc00', fontSize: 12, fontWeight: 700, marginBottom: 2 }}>
               En uso — reserva activa
             </div>
             <div style={{ color: C.muted, fontSize: 11 }}>
@@ -231,9 +248,9 @@ function ReservaCard({ reserva, onCancelar, cargandoId, onVerInstrucciones }) {
           disabled={cargandoId === reserva.id}
           onClick={() => onCancelar(reserva.id)}
           style={{
-            width: '100%', padding: '10px 0',
-            background: 'rgba(255,77,109,0.08)', border: '1px solid rgba(255,77,109,0.25)',
-            borderRadius: 10, color: '#ff4d6d', fontWeight: 600, fontSize: 13,
+            width: '100%', padding: '10px 0', marginTop: 'auto',
+            background: 'rgba(0,104,183,0.08)', border: '1px solid rgba(0,104,183,0.25)',
+            borderRadius: 10, color: '#0068b7', fontWeight: 600, fontSize: 13,
             cursor: 'pointer', fontFamily: FF, opacity: cargandoId === reserva.id ? 0.5 : 1,
           }}
         >
@@ -255,7 +272,7 @@ export default function MisReservas() {
 
   useEffect(() => {
     auth.fetchAuth('/api/reservas/mis-reservas')
-      .then(r => r.json())
+      .then(r => auth.readJson(r, []))
       .then(data => { setReservas(Array.isArray(data) ? data : []); setCargando(false) })
       .catch(() => { setError('No se pudieron cargar las reservas.'); setCargando(false) })
   }, [])
@@ -264,36 +281,41 @@ export default function MisReservas() {
   const historial = reservas.filter(r => ['COMPLETADA', 'CANCELADA', 'NO_SHOW'].includes(r.estado))
 
   const handleCancelar = async (id) => {
-  if (!confirm('¿Cancelar esta reserva?')) return
-  setCargandoId(id)
-  try {
-    const res = await auth.fetchAuth(`/api/reservas/${id}/cancelar`, { method: 'PATCH' })
-    if (res.ok) {
-      const updated = await res.json()
-      setReservas(prev => prev.map(r => r.id === id ? updated : r))
-    } else {
-      const err = await res.json().catch(() => ({}))
-      alert(err.mensaje || 'No se pudo cancelar.')
+    if (!confirm('¿Cancelar esta reserva?')) return
+    setCargandoId(id)
+    try {
+      const res = await auth.fetchAuth(`/api/reservas/${id}/cancelar`, { method: 'PATCH' })
+      if (res.ok) {
+        const updated = await auth.readJson(res, null)
+        setReservas(prev => prev.map(r => r.id === id ? updated : r))
+      } else {
+        const err = await auth.readJson(res, {})
+        alert(auth.message(err?.mensaje, 'No se pudo cancelar.'))
+      }
+    } catch {
+      alert('Error de conexión.')
+    } finally {
+      setCargandoId(null)
     }
-  } catch {
-    alert('Error de conexión.')
-  } finally {
-    setCargandoId(null)
   }
-}
 
   const lista = tab === 'activas' ? activas : historial
 
   return (
-    <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 0 32px', fontFamily: FF }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, marginBottom: 24 }}>
-        <GradText>Mis reservas</GradText>
-      </h1>
+    <div style={{ maxWidth: 1120, margin: '0 auto', padding: '20px clamp(12px, 2.4vw, 26px) 34px', fontFamily: FF }}>
+      <div style={{
+        borderRadius: 26,
+        border: `1px solid ${C.border}`,
+        background: 'linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.02) 45%, rgba(255,255,255,.01)), #07090d',
+        padding: 'clamp(18px, 2vw, 28px)',
+        boxShadow: '0 20px 48px rgba(0,0,0,.35)',
+      }}>
+      <h1 style={{ fontSize: MAIN_TITLE_SIZE, fontWeight: 830, color: C.text, marginBottom: 20, letterSpacing: '-.03em' }}>Mis reservas</h1>
 
       {/* Tabs */}
       <div style={{
-        display: 'flex', gap: 8, marginBottom: 24,
-        background: C.surface, borderRadius: 50, padding: 4, width: 'fit-content',
+        display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap',
+        background: 'rgba(255,255,255,.03)', border: `1px solid ${C.border}`, borderRadius: 50, padding: 4, width: 'fit-content',
       }}>
         {[
           { key: 'activas',   label: `Activas (${activas.length})` },
@@ -303,7 +325,7 @@ export default function MisReservas() {
             padding: '8px 20px', borderRadius: 50, border: 'none',
             background: tab === t.key ? GRAD : 'transparent',
             color: tab === t.key ? '#fff' : C.muted,
-            fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: FF,
+            fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: FF,
           }}>
             {t.label}
           </button>
@@ -313,13 +335,13 @@ export default function MisReservas() {
       {/* Info banner nuevo flujo */}
       {tab === 'activas' && activas.length > 0 && (
         <div style={{
-          background: 'rgba(167,139,250,0.07)', border: '1px solid rgba(167,139,250,0.2)',
-          borderRadius: 12, padding: '12px 16px', marginBottom: 20,
+          background: 'linear-gradient(145deg, rgba(0,104,183,.11), rgba(141,107,255,.08))', border: '1px solid rgba(0,104,183,.3)',
+          borderRadius: 12, padding: '12px 16px', marginBottom: 18,
           display: 'flex', gap: 12, alignItems: 'flex-start',
         }}>
-          <Info size={16} color="#a78bfa" style={{ flexShrink: 0, marginTop: 1 }} />
+          <Info size={16} color="#ffcc00" style={{ flexShrink: 0, marginTop: 1 }} />
           <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.6 }}>
-            <span style={{ color: '#a78bfa', fontWeight: 600 }}>¿Cómo activar tu reserva?</span>
+            <span style={{ color: '#ffcc00', fontWeight: 700 }}>¿Cómo activar tu reserva?</span>
             {' '}Ve a tu espacio físico y escanea el código QR que está pegado en él.
             No necesitas mostrar nada desde la app — el QR está en el espacio.
           </div>
@@ -330,7 +352,7 @@ export default function MisReservas() {
       {cargando ? (
         <div style={{ color: C.muted, textAlign: 'center', padding: 40 }}>Cargando…</div>
       ) : error ? (
-        <div style={{ color: '#ff4d6d', textAlign: 'center', padding: 40 }}>{error}</div>
+        <div style={{ color: '#0068b7', textAlign: 'center', padding: 40 }}>{error}</div>
       ) : lista.length === 0 ? (
         <Card style={{ textAlign: 'center', padding: 40 }}>
           <ParkingSquare size={36} color={C.muted} style={{ margin: '0 auto 12px' }} />
@@ -339,7 +361,12 @@ export default function MisReservas() {
           </div>
         </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 0 }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
+          gap: 16,
+          alignItems: 'stretch',
+        }}>
           {lista.map(r => (
             <ReservaCard
               key={r.id}
@@ -355,6 +382,11 @@ export default function MisReservas() {
       {modalReserva && (
         <ModalActivacion reserva={modalReserva} onClose={() => setModalReserva(null)} />
       )}
+      </div>
     </div>
   )
 }
+
+
+
+
