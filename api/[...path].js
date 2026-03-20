@@ -13,19 +13,18 @@ const HOP_BY_HOP_HEADERS = new Set([
 ])
 
 function buildTargetUrl(req, apiBase) {
-  const path = Array.isArray(req.query.path) ? req.query.path.join('/') : ''
   const base = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase
-  const target = new URL(`${base}/api/${path}`)
+  const requestUrl = new URL(req.url || '/api/', 'http://localhost')
+  const queryPath =
+    Array.isArray(req.query?.path) ? req.query.path.join('/') :
+    typeof req.query?.path === 'string' ? req.query.path :
+    ''
+  const pathnamePath = requestUrl.pathname.replace(/^\/api\/?/, '').replace(/^\/+|\/+$/g, '')
+  const path = pathnamePath || queryPath
+  const target = new URL(path ? `${base}/api/${path}` : `${base}/api/`)
 
-  Object.entries(req.query).forEach(([key, value]) => {
-    if (key === 'path') return
-    if (Array.isArray(value)) {
-      value.forEach((entry) => target.searchParams.append(key, entry))
-      return
-    }
-    if (value !== undefined) {
-      target.searchParams.set(key, value)
-    }
+  requestUrl.searchParams.forEach((value, key) => {
+    target.searchParams.append(key, value)
   })
 
   return target
