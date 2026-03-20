@@ -6,6 +6,7 @@ import { auth } from '../utils/auth'
 import { trackEvent } from '../utils/analytics'
 
 const TIPOS_DOC = ['CI', 'PASAPORTE', 'NIT', 'OTRO']
+const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
 // ── Colores propios (no depende de tokens globales para ser autónomo) ───────
 const BG       = '#031428'
@@ -360,7 +361,7 @@ export default function Login() {
     e.preventDefault()
     setError(''); setLoading(true)
     try {
-      const res  = await fetch('/api/auth/login', {
+      const res  = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -387,7 +388,7 @@ export default function Login() {
     }
     setLoading(true)
     try {
-      const res  = await fetch('/api/auth/register', {
+      const res  = await fetch(`${API_BASE}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

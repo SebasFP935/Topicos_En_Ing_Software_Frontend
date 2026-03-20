@@ -7,8 +7,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8082',
-        changeOrigin: false,
+        target: 'https://unpacified-edyth-communicatory.ngrok-free.dev',
+        changeOrigin: true,
       }
     }
   }
