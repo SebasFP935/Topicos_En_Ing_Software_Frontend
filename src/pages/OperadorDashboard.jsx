@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Clock, CheckCircle, Map, RefreshCw,
-  AlertTriangle, Calendar, ScanLine, X,
+  AlertTriangle, Calendar, ScanLine, X, QrCode,
 } from 'lucide-react'
 import { C, GRAD } from '../tokens'
 import { Card } from '../components/ui/Card'
@@ -19,10 +19,10 @@ const ESTADO = {
   ACTIVA:               { label: 'Activa',      color: '#3de8c8' },
   COMPLETADA:           { label: 'Completada',  color: '#5b7eff' },
   CANCELADA:            { label: 'Cancelada',   color: '#0068b7' },
-  NO_SHOW:              { label: 'No-show',      color: '#ffaa00' },
+  NO_SHOW:              { label: 'No-show',     color: '#ffaa00' },
 }
 
-// ── KPI Card ────────────────────────────────────────────────────────────────
+// ── KPI Card ─────────────────────────────────────────────────────────────────
 function KpiCard({ label, val, color, Icon, loading }) {
   return (
     <Card style={{ padding: '16px 18px' }}>
@@ -37,7 +37,7 @@ function KpiCard({ label, val, color, Icon, loading }) {
   )
 }
 
-// ── Badge estado ────────────────────────────────────────────────────────────
+// ── Badge estado ──────────────────────────────────────────────────────────────
 function EstBadge({ estado }) {
   const m = ESTADO[estado] || { label: estado, color: C.muted }
   return (
@@ -47,14 +47,119 @@ function EstBadge({ estado }) {
   )
 }
 
+// ── Modal QR ──────────────────────────────────────────────────────────────────
+function QrModal({ reserva, onClose }) {
+  const [imgSrc, setImgSrc] = useState(null)
+  const [error,  setError]  = useState(false)
+
+  useEffect(() => {
+    if (!reserva?.espacioId) { setError(true); return }
+    let url = null
+    auth.fetchAuth(`/api/espacios/${reserva.espacioId}/qr`)
+      .then(res => {
+        if (!res.ok) throw new Error()
+        return res.blob()
+      })
+      .then(blob => {
+        url = URL.createObjectURL(blob)
+        setImgSrc(url)
+      })
+      .catch(() => setError(true))
+    return () => { if (url) URL.revokeObjectURL(url) }
+  }, [reserva])
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: C.surface, border: `1px solid ${C.border}`,
+          borderRadius: 20, padding: 28, maxWidth: 360, width: '100%',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div>
+            <p style={{ fontSize: 15, fontWeight: 700, color: C.text, fontFamily: FF }}>
+              QR Espacio {reserva.codigoEspacio}
+            </p>
+            <p style={{ fontSize: 12, color: C.muted, fontFamily: FF, marginTop: 2 }}>
+              {reserva.zonaNombre} · {reserva.usuarioNombre}
+            </p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* QR Image */}
+        <div style={{
+          background: '#fff', borderRadius: 16, padding: 16,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          minHeight: 220, marginBottom: 16,
+        }}>
+          {!imgSrc && !error && (
+            <div style={{
+              width: 40, height: 40, borderRadius: '50%',
+              border: `3px solid #e5e7eb`, borderTopColor: '#111',
+              animation: 'spin .8s linear infinite',
+            }} />
+          )}
+          {error && (
+            <p style={{ color: '#999', fontSize: 13, textAlign: 'center', fontFamily: FF }}>
+              No se pudo cargar el QR.<br/>Reinicia el backend para generarlo.
+            </p>
+          )}
+          {imgSrc && (
+            <img src={imgSrc} alt="QR" style={{ width: 188, height: 188, display: 'block' }} />
+          )}
+        </div>
+
+        {/* Instrucción */}
+        <div style={{
+          background: 'rgba(61,232,200,0.07)', border: '1px solid rgba(61,232,200,0.2)',
+          borderRadius: 10, padding: '10px 14px', marginBottom: 16,
+        }}>
+          <p style={{ fontSize: 12, color: C.muted, fontFamily: FF, lineHeight: 1.6 }}>
+            Muestra este QR al usuario para que lo escanee con su cámara.
+            Funciona para <strong style={{ color: '#3de8c8' }}>check-in</strong> y <strong style={{ color: '#a78bfa' }}>check-out</strong>.
+          </p>
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            width: '100%', padding: '11px 0', background: GRAD,
+            border: 'none', borderRadius: 10, color: '#fff',
+            fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: FF,
+          }}
+        >
+          Cerrar
+        </button>
+
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    </div>
+  )
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
 export default function OperadorDashboard() {
   const navigate = useNavigate()
-  const [reservas, setReservas] = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [manualQr, setManualQr] = useState('')
-  const [manualMsg,setManualMsg]= useState(null)   // { tipo, msg }
-  const [procLoading, setProcLoading] = useState(false)
-  const [actionLoading, setActionLoading] = useState(null) // reservaId en proceso
+  const [reservas,     setReservas]     = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [manualQr,     setManualQr]     = useState('')
+  const [manualMsg,    setManualMsg]    = useState(null)
+  const [procLoading,  setProcLoading]  = useState(false)
+  const [qrModal,      setQrModal]      = useState(null) // reserva seleccionada
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -72,8 +177,7 @@ export default function OperadorDashboard() {
     setActionLoading(reserva.id)
     try {
       if (!reserva.codigoQrFisico) throw new Error('El espacio no tiene QR fisico configurado.')
-      const url = `/api/reservas/escanear/${encodeURIComponent(reserva.codigoQrFisico)}`
-      const res = await auth.fetchAuth(url)
+      const res = await auth.fetchAuth(`/api/reservas/escanear/${encodeURIComponent(reserva.codigoQrFisico)}`)
       if (!res.ok) {
         const d = await auth.readJson(res, {})
         throw new Error(auth.message(d?.mensaje, 'No se pudo procesar el QR fisico.'))
@@ -92,22 +196,16 @@ export default function OperadorDashboard() {
     if (!code) return
     setProcLoading(true)
     setManualMsg(null)
-
-    const tryEspacioFisico = async () => {
-      const res = await auth.fetchAuth(`/api/reservas/escanear/${encodeURIComponent(code)}`)
-      const d = await auth.readJson(res, {})
-      return { ok: res.ok, data: d, status: res.status }
-    }
-
     try {
-      const fisico = await tryEspacioFisico()
-      if (fisico.ok) {
-        const accion = fisico.data?.accion === 'CHECK_OUT' ? 'Check-out' : 'Check-in'
-        setManualMsg({ tipo: 'success', msg: `OK ${accion} registrado - Espacio ${fisico.data.codigoEspacio}` })
+      const res  = await auth.fetchAuth(`/api/reservas/escanear/${encodeURIComponent(code)}`)
+      const data = await auth.readJson(res, {})
+      if (res.ok) {
+        const accion = data?.accion === 'CHECK_OUT' ? 'Check-out' : 'Check-in'
+        setManualMsg({ tipo: 'success', msg: `OK ${accion} registrado - Espacio ${data.codigoEspacio}` })
         setManualQr('')
         cargar()
       } else {
-        setManualMsg({ tipo: 'error', msg: auth.message(fisico.data?.mensaje, 'No se pudo procesar el QR fisico.') })
+        setManualMsg({ tipo: 'error', msg: auth.message(data?.mensaje, 'No se pudo procesar el QR fisico.') })
       }
     } catch {
       setManualMsg({ tipo: 'error', msg: 'Error de conexion.' })
@@ -149,10 +247,10 @@ export default function OperadorDashboard() {
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 28 }}>
-        <KpiCard label="Pendientes"  val={pendientes}  color="#f59e0b" Icon={Clock}         loading={loading} />
-        <KpiCard label="Activas"     val={activas}     color="#3de8c8" Icon={CheckCircle}   loading={loading} />
-        <KpiCard label="Completadas" val={completadas}  color="#5b7eff" Icon={CheckCircle}   loading={loading} />
-        <KpiCard label="Total hoy"   val={reservas.length} color="#a259ff" Icon={Calendar}  loading={loading} />
+        <KpiCard label="Pendientes"  val={pendientes}      color="#f59e0b" Icon={Clock}       loading={loading} />
+        <KpiCard label="Activas"     val={activas}         color="#3de8c8" Icon={CheckCircle} loading={loading} />
+        <KpiCard label="Completadas" val={completadas}     color="#5b7eff" Icon={CheckCircle} loading={loading} />
+        <KpiCard label="Total hoy"   val={reservas.length} color="#a259ff" Icon={Calendar}    loading={loading} />
       </div>
 
       {/* Procesar QR manualmente */}
@@ -162,14 +260,14 @@ export default function OperadorDashboard() {
           <p style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFamily: FF }}>Procesar codigo QR manualmente</p>
         </div>
         <p style={{ fontSize: 12, color: C.muted, fontFamily: FF, marginBottom: 14 }}>
-          Introduce el <strong style={{ color: C.text }}>QR fisico del espacio</strong> para registrar entrada o salida.
+          Pega el <strong style={{ color: C.text }}>UUID del QR físico</strong> del espacio para registrar entrada o salida.
         </p>
         <div style={{ display: 'flex', gap: 10 }}>
           <input
             value={manualQr}
             onChange={e => { setManualQr(e.target.value); setManualMsg(null) }}
             onKeyDown={e => e.key === 'Enter' && procesarManual()}
-            placeholder="Pega o escribe el codigo QR fisico del espacio..."
+            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
             style={{ flex: 1, padding: '10px 14px', borderRadius: 10, background: C.s2, border: `1px solid ${C.border}`, color: C.text, fontSize: 14, fontFamily: FF, outline: 'none' }}
           />
           <button
@@ -177,35 +275,35 @@ export default function OperadorDashboard() {
             disabled={!manualQr.trim() || procLoading}
             style={{ padding: '10px 22px', borderRadius: 10, background: manualQr.trim() ? GRAD : C.border, border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: manualQr.trim() ? 'pointer' : 'default', fontFamily: FF, whiteSpace: 'nowrap' }}
           >
-            {procLoading ? 'Procesando…' : 'Procesar'}
+            {procLoading ? '…' : 'Procesar'}
           </button>
         </div>
         {manualMsg && (
-          <div style={{ marginTop: 10, padding: '9px 14px', borderRadius: 8, background: manualMsg.tipo === 'success' ? '#3de8c814' : '#0068b714', border: `1px solid ${manualMsg.tipo === 'success' ? '#3de8c830' : '#0068b730'}`, color: manualMsg.tipo === 'success' ? '#3de8c8' : '#0068b7', fontSize: 13, fontFamily: FF }}>
+          <p style={{ marginTop: 10, fontSize: 12, fontWeight: 600, color: manualMsg.tipo === 'success' ? '#3de8c8' : '#ff4d6d', fontFamily: FF }}>
             {manualMsg.msg}
-          </div>
+          </p>
         )}
       </div>
 
-      {/* Tabla reservas */}
-      <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14, fontFamily: FF }}>
-        Reservas de hoy ({loading ? '…' : reservas.length})
-      </p>
+      {/* Tabla de reservas */}
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.border}` }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFamily: FF }}>
+            RESERVAS DE HOY ({loading ? '…' : reservas.length})
+          </p>
+        </div>
+
         {loading ? (
-          <div style={{ padding: 48, textAlign: 'center', color: C.muted }}>Cargando reservas…</div>
+          <p style={{ padding: 32, textAlign: 'center', color: C.muted, fontFamily: FF }}>Cargando…</p>
         ) : reservas.length === 0 ? (
-          <div style={{ padding: 56, textAlign: 'center' }}>
-            <Calendar size={40} color={C.border} style={{ marginBottom: 12 }} />
-            <p style={{ color: C.muted, fontSize: 14 }}>No hay reservas para hoy</p>
-          </div>
+          <p style={{ padding: 32, textAlign: 'center', color: C.muted, fontFamily: FF }}>No hay reservas para hoy.</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                  {['Usuario', 'Espacio / Zona', 'Horario', 'Check-in', 'Check-out', 'Estado', 'Acción'].map(h => (
-                    <th key={h} style={{ padding: '12px 16px', fontSize: 10, fontWeight: 700, color: C.muted, textAlign: 'left', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: FF, whiteSpace: 'nowrap' }}>{h}</th>
+                <tr style={{ background: C.s2 }}>
+                  {['USUARIO', 'ESPACIO / ZONA', 'HORARIO', 'CHECK-IN', 'CHECK-OUT', 'ESTADO', 'ACCIÓN'].map(h => (
+                    <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: C.muted, fontFamily: FF, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -234,38 +332,26 @@ export default function OperadorDashboard() {
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       {r.checkInTime
                         ? <span style={{ fontSize: 12, color: '#3de8c8', fontWeight: 600, fontFamily: FF }}>✓ {fmtH(r.checkInTime)}</span>
-                        : <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>—</span>
-                      }
+                        : <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>—</span>}
                     </td>
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       {r.checkOutTime
                         ? <span style={{ fontSize: 12, color: '#5b7eff', fontWeight: 600, fontFamily: FF }}>✓ {fmtH(r.checkOutTime)}</span>
-                        : <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>—</span>
-                      }
+                        : <span style={{ fontSize: 12, color: C.muted, fontFamily: FF }}>—</span>}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <EstBadge estado={r.estado} />
                     </td>
                     <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {r.estado === 'PENDIENTE_ACTIVACION' && (
-                          <button
-                            disabled={actionLoading === r.id}
-                            onClick={() => doAccion(r)}
-                            style={{ padding: '5px 12px', borderRadius: 7, background: '#3de8c814', border: '1px solid #3de8c830', color: '#3de8c8', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF, opacity: actionLoading === r.id ? 0.5 : 1 }}
-                          >
-                            {actionLoading === r.id ? '…' : 'Check-in'}
-                          </button>
-                        )}
-                        {r.estado === 'ACTIVA' && (
-                          <button
-                            disabled={actionLoading === r.id}
-                            onClick={() => doAccion(r)}
-                            style={{ padding: '5px 12px', borderRadius: 7, background: '#a259ff14', border: '1px solid #a259ff30', color: '#a259ff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF, opacity: actionLoading === r.id ? 0.5 : 1 }}
-                          >
-                            {actionLoading === r.id ? '…' : 'Check-out'}
-                          </button>
-                        )}
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        {/* Botón Ver QR */}
+                        <button
+                          onClick={() => setQrModal(r)}
+                          title="Ver QR del espacio"
+                          style={{ padding: '5px 10px', borderRadius: 7, background: '#5b7eff14', border: '1px solid #5b7eff30', color: '#5b7eff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: FF, display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <QrCode size={12} /> QR
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -280,14 +366,13 @@ export default function OperadorDashboard() {
       <div style={{ marginTop: 20, padding: '12px 16px', background: '#5b7eff0a', border: '1px solid #5b7eff20', borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <AlertTriangle size={14} color={C.accent} style={{ marginTop: 1, flexShrink: 0 }} />
         <p style={{ fontSize: 12, color: C.muted, fontFamily: FF, lineHeight: 1.6 }}>
-          El check-in/check-out se realiza únicamente con el <strong style={{ color: C.text }}>QR físico del espacio</strong>. El QR de la reserva ya no se usa en este flujo.
+          Usa el botón <strong style={{ color: '#5b7eff' }}>QR</strong> en cada fila para mostrar el código al usuario y que lo escanee desde la pantalla.
+          El check-in/check-out automático ocurre al escanear con la cámara del celular.
         </p>
       </div>
+
+      {/* Modal QR */}
+      {qrModal && <QrModal reserva={qrModal} onClose={() => setQrModal(null)} />}
     </div>
   )
 }
-
-
-
-
-
